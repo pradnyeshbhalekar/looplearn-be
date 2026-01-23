@@ -1,4 +1,4 @@
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 
 def fetch_candidate_source(topic_name:str,max_results: int =20):
     query = f"{topic_name} explained"
