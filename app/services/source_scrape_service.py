@@ -21,15 +21,14 @@ def scrape_and_store(source_id: str, url: str):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # 1. Update source
     cursor.execute("""
-        UPDATE sources
-        SET title = COALESCE(%s, title),
-            content_text = %s,
-            scrape_status = %s,
-            scraped_at = NOW()
-        WHERE id = %s;
-    """, (title, content_text, status, source_id))
+    UPDATE sources
+    SET title = COALESCE(%s, title),
+        content_text = %s,
+        scrape_status = %s,
+        scraped_at = NOW()
+    WHERE id = %s;
+""", (title, content_text, status, source_id))
 
     # 2. Fetch topic_node_ids
     cursor.execute("""

@@ -15,11 +15,18 @@ def store_sources_bulk(items):
         domain = urlparse(url).netloc
 
         cursor.execute("""
-            INSERT INTO sources (url, domain, title, summary,published_at)
-            VALUES (%s, %s, %s, %s, NOW())
-            ON CONFLICT (url) DO NOTHING
-            RETURNING id, url;
-        """, (url, domain, title, summary))
+    INSERT INTO sources (
+        url,
+        domain,
+        title,
+        summary,
+        published_at,
+        scrape_status
+    )
+    VALUES (%s, %s, %s, %s, NOW(), 'pending')
+    ON CONFLICT (url) DO NOTHING
+    RETURNING id, url;
+""", (url, domain, title, summary))
 
         row = cursor.fetchone()  
 
