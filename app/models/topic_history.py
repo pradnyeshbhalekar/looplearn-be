@@ -21,4 +21,4 @@ def create_topic_history_table():
 
     conn.commit()
     close_connection(conn)
-    print("✅ topic_history table created")
+    print("✅ topic_history table created") 

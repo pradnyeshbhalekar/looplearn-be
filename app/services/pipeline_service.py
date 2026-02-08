@@ -61,3 +61,4 @@ def run_pipeline():
         "source_scraped": len(scraped_result),
         "child_topic_added": child_inserted
     }
+

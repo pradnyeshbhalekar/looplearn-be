@@ -46,3 +46,4 @@ def create_daily_post_sources_table():
     close_connection(conn)
 
     print("daily_post_sources table created")
+
