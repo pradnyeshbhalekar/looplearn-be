@@ -1,4 +1,4 @@
-from config.db import close_connection,get_connection
+from app.config.db import close_connection,get_connection
 import json
 
 def create_pipeline_jobs():
