@@ -13,9 +13,17 @@ def run_pipeline_route():
     }), 202
 
 
+import uuid
+from flask import jsonify
+
 @pipeline_bp.get("/status/<job_id>")
 def get_pipeline_status(job_id):
-    job = get_job(job_id)
+    try:
+        job_uuid = str(uuid.UUID(job_id))  
+    except ValueError:
+        return jsonify({"error": "Invalid job_id"}), 400
+
+    job = get_job(job_uuid)
 
     if not job:
         return jsonify({"error": "Job not found"}), 404
