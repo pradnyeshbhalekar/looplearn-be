@@ -11,10 +11,14 @@ def scrape_and_store(source_id: str, url: str):
     title = None
 
     if result.get("ok"):
-        status = "success"
         raw_text = result.get("text")
-        content_text = clean_text(raw_text) if raw_text else None
         title = result.get("title")
+
+        if raw_text and len(raw_text) > 300:
+            content_text = clean_text(raw_text)
+            status = "success"
+        else:
+            status = "failed"
     else:
         status = result.get("reason", "failed")
 
@@ -22,15 +26,14 @@ def scrape_and_store(source_id: str, url: str):
     cursor = conn.cursor()
 
     cursor.execute("""
-    UPDATE sources
-    SET title = COALESCE(%s, title),
-        content_text = %s,
-        scrape_status = %s,
-        scraped_at = NOW()
-    WHERE id = %s;
-""", (title, content_text, status, source_id))
+        UPDATE sources
+        SET title = COALESCE(%s, title),
+            content_text = COALESCE(%s, content_text),
+            scrape_status = %s,
+            scraped_at = NOW()
+        WHERE id = %s;
+    """, (title, content_text, status, source_id))
 
-    # 2. Fetch topic_node_ids
     cursor.execute("""
         SELECT topic_node_id
         FROM topic_sources
@@ -49,5 +52,3 @@ def scrape_and_store(source_id: str, url: str):
         "status": status,
         "title": title
     }
-
-
