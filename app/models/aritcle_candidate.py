@@ -1,4 +1,4 @@
-from config.db import get_connection,close_connection
+from app.config.db import get_connection,close_connection
 
 def create_article_candidate():
     conn = get_connection()
