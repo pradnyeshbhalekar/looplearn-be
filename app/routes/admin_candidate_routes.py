@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from app.models.aritcle_candidate import list_candidates, get_candidate
+from app.models.article_candidate import list_candidates, get_candidate
 from app.services.publish_service import approve_candidate, reject_candidate
 
 admin_candidate_routes = Blueprint(

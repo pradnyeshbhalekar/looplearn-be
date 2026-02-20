@@ -6,8 +6,8 @@ from app.models.topic_history import create_topic_history_table
 from app.models.topic_sources import create_topic_sources_table
 from app.models.compiled_topics import create_compiled_topics_tables
 from app.models.pipeline_jobs import create_pipeline_jobs
-from app.models.aritcle_candidate import create_article_candidate
-from app.models.published_articles import create_published_articles
+from app.models.article_candidate import create_article_candidate
+from app.models.published_articles import create_published_article
 
 
 def init_db():
@@ -21,7 +21,7 @@ def init_db():
     create_compiled_topics_tables()
     create_pipeline_jobs()
     create_article_candidate()
-    create_published_articles()
+    create_published_article()
 
 
     seed_domains()
