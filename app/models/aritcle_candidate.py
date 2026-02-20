@@ -68,7 +68,7 @@ def get_candidate(candidate_id):
     return row
 
 
-def list_candidate(status="pending"):
+def list_candidates(status="pending"):
     conn = get_connection()
     cursor = conn.cursor()
 
