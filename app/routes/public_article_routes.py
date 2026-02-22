@@ -3,8 +3,7 @@ from app.models.published_articles import get_published_by_slug
 
 public_article_routes = Blueprint(
     "public_articles",
-    __name__,
-    url_prefix="/articles"
+    __name__
 )
 
 @public_article_routes.get("/<slug>")

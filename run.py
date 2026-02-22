@@ -32,8 +32,8 @@ def init_database():
 app.register_blueprint(topic_bp, url_prefix="/api/topics")
 app.register_blueprint(source_bp,url_prefix='/api/sources')
 app.register_blueprint(pipeline_bp, url_prefix="/api/pipeline")
-app.register_blueprint(admin_candidate_routes,url_prefix="/api")
-app.register_blueprint(public_article_routes,url_prefix='/api')
+app.register_blueprint(admin_candidate_routes,url_prefix="/api/admin/candidates")
+app.register_blueprint(public_article_routes,url_prefix='/api/articles')
 
 
 

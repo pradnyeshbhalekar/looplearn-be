@@ -1,16 +1,16 @@
 from google import genai
+from google.genai import types
 import os
 import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# The client automatically picks up GEMINI_API_KEY from the environment
+client = genai.Client()
 
-MODEL_NAME = "gemini-2.5-flash"
-
-
-
+# Note: Ensure you have access to 2.5-flash, otherwise "gemini-2.0-flash" is the current standard.
+MODEL_NAME = "gemini-2.5-flash" 
 
 SYSTEM_INSTRUCTIONS = """
 You are a senior software engineer and technical interviewer.
@@ -63,21 +63,23 @@ You must produce JSON in EXACTLY this format:
 }
 """
 
-
 def compile_topic(topic_name: str, concepts: list[str]) -> dict:
-    prompt = f"""
-{SYSTEM_INSTRUCTIONS}
-
-Topic: {topic_name}
-Extracted concepts: {", ".join(concepts)}
-"""
+    # Keep the user prompt clean and focused strictly on the data
+    prompt = f"Topic: {topic_name}\nExtracted concepts: {', '.join(concepts)}"
 
     response = client.models.generate_content(
         model=MODEL_NAME,
-        contents=prompt
+        contents=prompt,
+        # Use types.GenerateContentConfig for type safety and clarity
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTIONS,
+            response_mime_type="application/json",
+            temperature=0.2
+        )
     )
 
     try:
         return json.loads(response.text)
     except Exception as e:
-        raise ValueError("Gemini returned invalid JSON") from e
+        # It is helpful to print the raw text in the error to debug why it failed
+        raise ValueError(f"Gemini returned invalid JSON: {response.text}") from e

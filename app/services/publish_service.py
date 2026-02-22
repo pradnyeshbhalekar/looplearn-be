@@ -31,7 +31,8 @@ def approve_candidate(candidate_id, admin_user_id):
 
     update_candidate_status(
         candidate_id=candidate_id,
-        status="approved"
+        status="approved",
+        reviewed_by=admin_user_id
     )
 
 
@@ -40,5 +41,5 @@ def reject_candidate(candidate_id, reason, admin_user_id):
         candidate_id=candidate_id,
         status="rejected",
         reason=reason,
-        rejected_by=admin_user_id
+        reviewed_by=admin_user_id
     )

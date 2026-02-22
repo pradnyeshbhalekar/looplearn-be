@@ -18,7 +18,7 @@ def create_article_candidate():
         status IN ('pending', 'approved', 'rejected')
     ) DEFAULT 'pending',
                     rejection_reason TEXT,
-                   rejected_by TEXT,
+                   reviewed_by TEXT,
                     reviewed_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT NOW()
                    )
@@ -75,20 +75,24 @@ def list_candidates(status="pending"):
     cursor.execute("""
         SELECT * FROM article_candidate WHERE status=%s ORDER BY created_at DESC;
                    """,(status,))
+    columns = [desc[0] for desc in cursor.description]
     rows = cursor.fetchall()
-    close_connection(conn)
-    return rows
 
-def update_candidate_status(candidate_id,status,reason=None,rejected_by=None):
+    result = [dict(zip(columns, row)) for row in rows]
+
+    close_connection(conn)
+    return result
+
+def update_candidate_status(candidate_id,status,reason=None,reviewed_by=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
             UPDATE article_candidate SET status=%s, 
                    rejection_reason=%s, 
-                   rejected_by=%s,
+                   reviewed_by=%s,
                    reviewed_at=NOW()
                    WHERE id=%s
-                   """,(status,reason,rejected_by,candidate_id))
+                   """,(status,reason,reviewed_by,candidate_id))
     conn.commit()
     close_connection(conn)
     
