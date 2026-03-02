@@ -14,7 +14,7 @@ def require_auth():
     except Exception:
         abort(401)
 
-    user_id = payload.get("sub")
+    user_id = payload.get("user_id")
     if not user_id:
         abort(401)
 
