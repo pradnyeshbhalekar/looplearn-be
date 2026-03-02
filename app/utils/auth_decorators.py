@@ -26,6 +26,15 @@ def require_editor(fn):
     return wrapper
 
 
-def require_pipeline_secret():
-    secret = request.headers.get("Authorization")
-    if secret!=f"Bearer {os.getenv('PIPELINE_SECRET')}"
+def require_pipeline_secret(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        header = request.headers.get("Authorization")
+
+        expected = f"Bearer {os.getenv('PIPELINE_SECRET')}"
+        if not header or header != expected:
+            abort(401)
+
+        return fn(*args, **kwargs)
+
+    return wrapper
