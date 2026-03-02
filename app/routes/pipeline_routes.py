@@ -1,6 +1,10 @@
 from flask import Blueprint, jsonify
 from app.services.pipeline_job_service import start_pipeline_job
 from app.models.pipeline_jobs import get_job
+import os
+
+CRON_SECRET = os.getenv("CRON_SECRET")
+
 
 pipeline_bp = Blueprint("pipeline", __name__, url_prefix="/api/pipeline")
 

@@ -1,7 +1,6 @@
 from functools import wraps
-from flask import abort,request
+from flask import abort
 from app.utils.auth_middleware import require_auth
-import os
 
 def require_admin(fn):
     @wraps(fn)
@@ -22,6 +21,3 @@ def require_editor(fn):
         return fn(user, *args, **kwargs)
     return wrapper
 
-def require_pipeline_secret():
-    secret = request.headers.get("Authorization")
-    if secret!=f"Bearer {os.getenv('PIPELINE_SECRET')}"

@@ -9,3 +9,4 @@ def create_jwt(payload: dict):
 
 def decode_jwt(token: str):
     return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+

@@ -2,7 +2,7 @@ name: Daily Pipeline
 
 on:
   schedule:
-    - cron: "0 20 * * *" # 8:00 PM IST (UTC+5:30)
+    - cron: "30 14 * * *"   # 8:00 PM IST
   workflow_dispatch:
 
 jobs:
@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger backend pipeline
+      - name: Trigger daily pipeline
         run: |
           curl -X POST "${{ secrets.PIPELINE_URL }}" \
-          -H "Authorization: Bearer ${{ secrets.PIPELINE_TOKEN }}"
+            -H "Authorization: Bearer ${{ secrets.PIPELINE_TOKEN }}" \
+            -H "Content-Type: application/json"

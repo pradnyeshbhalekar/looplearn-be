@@ -1,14 +1,9 @@
-from app.services.topic_compiler import compile_topic
+from app.utils.jwt_utils import create_jwt
 
-result = compile_topic(
-    "Load Balancing",
-    [
-        "Round Robin",
-        "Least Connections",
-        "Health Checks",
-        "Horizontal Scaling",
-        "Reverse Proxy"
-    ]
-)
+token = create_jwt({
+    "user_id": "cron",
+    "email": "cron@looplearn.ai",
+    "role": "admin"
+})
 
-print(result)
+print(token)
