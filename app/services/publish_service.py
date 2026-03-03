@@ -1,13 +1,13 @@
 from app.models.published_articles import publish_article
 from app.models.article_candidate import update_candidate_status
 from app.config.db import get_connection, close_connection
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 
 
 
-def approve_candidate(candidate_id, admin_user_id, published_date=None):
-    if not published_date:
-        published_date = date.today() + timedelta(days=1)
+def approve_candidate(candidate_id, admin_user_id, publish_date=None):
+    if not publish_date:
+        publish_date = datetime.utcnow() + timedelta(days=1)
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -17,14 +17,15 @@ def approve_candidate(candidate_id, admin_user_id, published_date=None):
         FROM article_candidate
         WHERE id = %s AND status = 'pending';
     """, (candidate_id,))
-    row = cursor.fetchone()
 
+    row = cursor.fetchone()
     if not row:
         close_connection(conn)
         raise ValueError("Invalid candidate")
 
     topic_node_id, title, slug, article_md, diagram = row
 
+    # 🔥 THIS WAS MISSING
     publish_article(
         candidate_id=candidate_id,
         topic_node_id=topic_node_id,
@@ -33,21 +34,21 @@ def approve_candidate(candidate_id, admin_user_id, published_date=None):
         article_md=article_md,
         diagram=diagram,
         admin_user_id=admin_user_id,
-        publish_date=published_date
+        publish_date=publish_date
     )
 
     cursor.execute("""
         UPDATE article_candidate
-        SET status = 'approved',
+        SET
+            status = 'approved',
             scheduled_for = %s,
             reviewed_by = %s,
             reviewed_at = NOW()
         WHERE id = %s;
-    """, (published_date, admin_user_id, candidate_id))
+    """, (publish_date, admin_user_id, candidate_id))
 
     conn.commit()
     close_connection(conn)
-
 
 def reject_candidate(candidate_id, reason, admin_user_id):
     update_candidate_status(

@@ -16,7 +16,7 @@ def create_published_article():
                    diagram TEXT NOT NULL,
                    published_at TIMESTAMP DEFAULT NOW(),
                    published_by UUID,
-                   scheduled_for DATE
+                   scheduled_for DATE NOT NULL
                    )
                    """)
     conn.commit()
@@ -33,7 +33,7 @@ def publish_article(candidate_id,topic_node_id,title,slug,article_md,diagram,adm
                    title,
                    slug,
                    article_md,
-                   diagram,published_by,publish_date
+                   diagram,published_by,scheduled_for
                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id;
                    """,(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date))
     article_id = cursor.fetchone()[0]
@@ -85,17 +85,19 @@ def get_todays_published_article():
 
         FROM published_articles pa
 
-        -- the topic the article is about
+        -- topic the article is about
         JOIN concept_nodes topic
             ON pa.topic_node_id = topic.id
 
-        -- walk UP the graph
+        -- walk UP the graph to domain
         JOIN concept_edges ce
             ON ce.to_node_id = topic.id
 
         JOIN concept_nodes domain
             ON ce.from_node_id = domain.id
            AND domain.node_type = 'domain'
+
+        WHERE pa.scheduled_for::date = CURRENT_DATE
 
         ORDER BY pa.published_at DESC
         LIMIT 1;
