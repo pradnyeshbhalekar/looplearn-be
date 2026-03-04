@@ -25,7 +25,7 @@ def approve_candidate(candidate_id, admin_user_id, publish_date=None):
 
     topic_node_id, title, slug, article_md, diagram = row
 
-    # 🔥 THIS WAS MISSING
+
     publish_article(
         candidate_id=candidate_id,
         topic_node_id=topic_node_id,

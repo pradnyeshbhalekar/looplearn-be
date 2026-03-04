@@ -13,7 +13,10 @@ from app.routes.auth_routes import auth_routes
 app = Flask(__name__)
 
 
-CORS(app, origins=['http://localhost:5173','https://looplearn-nine.vercel.app'], supports_credentials=True)
+CORS(app, origins=['http://localhost:5173','https://looplearn-nine.vercel.app'], supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+)
 
 @app.after_request
 def add_headers(response):

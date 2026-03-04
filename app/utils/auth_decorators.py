@@ -7,12 +7,18 @@ from app.utils.auth_middleware import require_auth
 def require_admin(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        user = require_auth()  # decode JWT ONCE
+
+        # allow CORS preflight
+        if request.method == "OPTIONS":
+            return "", 200
+
+        user = require_auth()
 
         if user.get("role") != "admin":
             abort(403)
 
         return fn(user, *args, **kwargs)
+
     return wrapper
 
 
