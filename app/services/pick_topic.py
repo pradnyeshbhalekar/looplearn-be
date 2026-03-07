@@ -73,3 +73,66 @@ def pick_topic():
     close_connection(conn)
 
     return {"topic_node_id": str(picked_id), "topic_name": picked_name}
+
+
+from app.config.db import get_connection, close_connection
+
+def pick_topic_domain(domain_name=None):
+    """
+    Finds an unwritten topic. 
+    If a domain_name is provided, it filters by that domain.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        
+        if domain_name:
+            print(f"🔍 Searching for a topic in domain: {domain_name}")
+            
+            # This query is expanded to be more aggressive and case-insensitive
+            cursor.execute("""
+                SELECT t.id, t.name
+                FROM concept_nodes t
+                INNER JOIN concept_edges e ON t.id = e.to_node_id
+                INNER JOIN concept_nodes d ON e.from_node_id = d.id
+                WHERE LOWER(d.name) = LOWER(%s) 
+                  AND d.node_type = 'domain' 
+                  AND t.node_type = 'concept'
+                  AND t.id NOT IN (
+                      SELECT topic_node_id 
+                      FROM published_articles 
+                      WHERE topic_node_id IS NOT NULL
+                  )
+                ORDER BY RANDOM()
+                LIMIT 1;
+            """, (domain_name,))
+        else:
+            cursor.execute("""
+                SELECT id, name
+                FROM concept_nodes
+                WHERE node_type = 'topic'
+                  AND id NOT IN (
+                      SELECT topic_node_id 
+                      FROM published_articles 
+                      WHERE topic_node_id IS NOT NULL
+                  )
+                LIMIT 1;
+            """)
+        
+        row = cursor.fetchone()
+        
+        if row:
+            print(f"✅ Found topic: {row[1]} (ID: {row[0]})")
+            return {
+                "topic_node_id": row[0], 
+                "topic_name": row[1]
+            }
+        
+        print(f"❌ No unused topics found for domain: {domain_name}")
+        return None
+        
+    except Exception as e:
+        print(f"⚠️ Database error in pick_topic: {e}")
+        return None
+    finally:
+        close_connection(conn)

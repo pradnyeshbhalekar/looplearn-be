@@ -6,13 +6,12 @@ from app.utils.auth_middleware import require_auth
 
 def require_admin(fn):
     @wraps(fn)
-    def wrapper(*args, **kwargs):
+    @require_auth
+    def wrapper(user, *args, **kwargs):
 
         # allow CORS preflight
         if request.method == "OPTIONS":
             return "", 200
-
-        user = require_auth()
 
         if user.get("role") != "admin":
             abort(403)

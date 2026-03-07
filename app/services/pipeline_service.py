@@ -1,4 +1,5 @@
-from app.services.pick_topic import pick_topic
+from operator import index
+from app.services.pick_topic import pick_topic,pick_topic_domain
 from app.services.fetcher import fetch_candidate_source
 from app.services.source_service import store_sources_bulk
 from app.config.db import get_connection, close_connection
@@ -8,7 +9,11 @@ from app.services.compiled_topic_service import save_compiled_topic
 from app.services.child_topic_service import add_child_topics
 from app.models.article_candidate import create_candidate
 from slugify import slugify   # python-slugify
-import json
+from app.models.published_articles import publish_article
+from datetime import date, timedelta
+import threading
+import uuid
+from app.models.pipeline_jobs import create_job, update_job
 
 def render_article_md(compiled: dict) -> str:
     parts = []
@@ -109,14 +114,14 @@ def run_pipeline():
     for source_id, url in rows:
         scraped_result.append(scrape_and_store(source_id, url))
 
-    # 2️⃣ Compile topic
+
     compiled = compile_topic(topic_name, [topic_name])
 
-    # 3️⃣ Persist compiled structure
+
     compiled_id = save_compiled_topic(topic_id, compiled)
 
-    # 4️⃣ Derive ARTICLE FIELDS (THIS WAS MISSING)
-    title = f"{topic_name} – Complete Guide"
+
+    title = f"{topic_name}"
     slug = slugify(title)
     article_md = render_article_md(compiled)
 
@@ -147,4 +152,225 @@ def run_pipeline():
         "source_fetched": len(fetched_sources),
         "source_scraped": len(scraped_result),
         "child_topic_added": child_inserted
+    }
+
+
+import re
+def slugify(text):
+    text = text.lower()
+    return re.sub(r'[\W_]+', '-', text).strip('-')
+
+
+
+def start_premium_pipeline_job(domain: str):
+    """Generates a job ID, saves it, and boots up the background thread."""
+    job_id = str(uuid.uuid4())
+    create_job(job_id)
+
+    t = threading.Thread(
+        target=_run_premium_pipeline_job,
+        args=(job_id, domain),
+        daemon=True
+    )
+    t.start()
+
+    return job_id
+
+
+# ==========================================
+# 2. PREMIUM BACKGROUND EXECUTOR
+# ==========================================
+def _run_premium_pipeline_job(job_id: str, domain: str):
+    """Runs the pipeline and updates the job status upon success or failure."""
+    update_job(job_id, "running")
+
+    try:
+        result = run_premium_pipeline(domain)
+        update_job(job_id, "completed", result=result)
+
+        topic_name = result.get("topic_name")
+        if topic_name:
+            try:
+                from app.services.email_service import send_admin_notification
+                from app.utils.email_utils import get_admin_emails
+                emails = get_admin_emails()
+                if emails:
+                    send_admin_notification(emails, topic_name)
+            except Exception as mail_err:
+                print(f"⚠️ Email notification failed: {mail_err}")
+    except Exception as e:
+        update_job(job_id, "failed", error=str(e))
+        print(f"❌ Pipeline failed for {domain}: {e}")
+
+
+# ==========================================
+# 3. THE PREMIUM CORE LOGIC
+# ==========================================
+def run_premium_pipeline(domain: str):
+    """Fetches, scrapes, compiles, and AUTO-PUBLISHES for tomorrow."""
+    
+    # 1️⃣ Pick Topic for this specific domain
+    topic = pick_topic_domain(domain)
+    if not topic:
+        # Fallback: pick any available topic to avoid failures
+        topic = pick_topic()
+        if not topic:
+            raise RuntimeError(f"No pending topics found for domain: {domain}")
+
+    topic_id = topic["topic_node_id"]
+    topic_name = topic["topic_name"]
+    print(f"🎯 Starting generation for: {topic_name} ({domain or 'auto'})")
+
+    # 2️⃣ Fetch & store sources
+    fetched_sources = fetch_candidate_source(topic_name)
+    store_sources_bulk(fetched_sources)
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, url
+            FROM sources
+            WHERE scrape_status = 'pending'
+            LIMIT 10;
+        """)
+        rows = cursor.fetchall()
+    finally:
+        close_connection(conn)
+
+    # 3️⃣ Scrape
+    scraped_result = []
+    for source_id, url in rows:
+        scraped_result.append(scrape_and_store(source_id, url))
+
+    # 4️⃣ Compile topic via AI
+    compiled = compile_topic(topic_name, [topic_name])
+
+    # 5️⃣ Persist compiled structure
+    compiled_id = save_compiled_topic(topic_id, compiled)
+
+    # 6️⃣ Derive ARTICLE FIELDS
+    title = f"{topic_name} – Complete Guide"
+    slug = slugify(title)
+    article_md = render_article_md(compiled)
+
+    diagram = None
+    if "mermaid" in compiled:
+        diagram = compiled["mermaid"].get("code")
+
+    # 7️⃣ Create candidate and AUTO-PUBLISH
+    tomorrow = date.today() + timedelta(days=1)
+    candidate_id = create_candidate(
+        compiled_topic_id=compiled_id,
+        topic_node_id=topic_id,
+        title=title,
+        slug=slug,
+        article_md=article_md,
+        diagram=diagram
+    )
+    article_id = publish_article(
+        candidate_id=candidate_id,
+        topic_node_id=topic_id,
+        title=title,
+        slug=slug,
+        article_md=article_md,
+        diagram=diagram,
+        admin_user_id=None,
+        publish_date=tomorrow
+    )
+
+    print(f"🚀 AUTO-PUBLISHED '{title}' directly to DB (Scheduled for {tomorrow})")
+
+    # 8️⃣ Child topics
+    child_topics = compiled.get("child_topics", [])
+    child_inserted = add_child_topics(topic_id, child_topics)
+
+    result = {
+        "article_id": article_id,
+        "candidate_id": candidate_id,
+        "topic_id": topic_id,
+        "topic_name": topic_name,
+        "domain": domain or "auto",
+        "scheduled_for": str(tomorrow),
+        "source_fetched": len(fetched_sources),
+        "source_scraped": len(scraped_result),
+        "child_topic_added": child_inserted
+    }
+    return result
+
+
+# ==========================================
+# 4. ALL-DOMAINS PIPELINE
+# ==========================================
+def start_all_domains_pipeline_job():
+    """Kicks off a single background job that runs the pipeline for every domain."""
+    job_id = str(uuid.uuid4())
+    create_job(job_id)
+
+    t = threading.Thread(
+        target=_run_all_domains_pipeline_job,
+        args=(job_id,),
+        daemon=True
+    )
+    t.start()
+
+    return job_id
+
+
+def _run_all_domains_pipeline_job(job_id: str):
+    update_job(job_id, "running")
+
+    try:
+        result = run_all_domains_pipeline()
+        update_job(job_id, "completed", result=result)
+
+        # Send summary email to admins
+        try:
+            from app.services.email_service import send_all_domains_report
+            from app.utils.email_utils import get_admin_emails
+            emails = get_admin_emails()
+            if emails:
+                send_all_domains_report(emails, result)
+        except Exception as mail_err:
+            print(f"⚠️ Email notification failed: {mail_err}")
+    except Exception as e:
+        update_job(job_id, "failed", error=str(e))
+        print(f"❌ All-domains pipeline failed: {e}")
+
+
+def run_all_domains_pipeline():
+    """Runs the premium pipeline for every domain. Returns a summary of results."""
+    from app.models.graph import get_all_domain_names
+    from app.utils.email_utils import get_admin_emails
+    from app.services.email_service import send_admin_notification
+
+    domains = get_all_domain_names()
+    if not domains:
+        raise RuntimeError("No domains found in the database")
+
+    successes = []
+    failures = []
+
+    for domain in domains:
+        try:
+            print(f"▶ Running pipeline for domain: {domain}")
+            result = run_premium_pipeline(domain)
+            successes.append(result)
+            print(f"✅ Completed: {domain} → {result['topic_name']}")
+            try:
+                emails = get_admin_emails()
+                if emails and result.get("topic_name"):
+                    send_admin_notification(emails, result["topic_name"])
+            except Exception as mail_err:
+                print(f"⚠️ Email notification failed for {domain}: {mail_err}")
+        except Exception as e:
+            failures.append({"domain": domain, "error": str(e)})
+            print(f"❌ Failed: {domain} → {e}")
+
+    return {
+        "total_domains": len(domains),
+        "succeeded": len(successes),
+        "failed": len(failures),
+        "results": successes,
+        "errors": failures,
     }

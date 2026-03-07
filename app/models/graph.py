@@ -78,6 +78,22 @@ def seed_domains():
     print(" Domains seeded")
 
 
+def get_all_domain_names():
+    """Returns a list of all domain names from concept_nodes."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT name FROM concept_nodes
+            WHERE node_type = 'domain'
+            ORDER BY name;
+        """)
+        rows = cursor.fetchall()
+        return [r[0] for r in rows]
+    finally:
+        close_connection(conn)
+
+
 def insert_node(name, node_type):
     conn = get_connection()
     cursor = conn.cursor()

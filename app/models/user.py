@@ -92,6 +92,34 @@ def get_or_create_user(email: str):
     finally:
         close_connection(conn)
 
+def get_user_active_subscription(user_id):
+    """Returns the user's active subscription with its domain, or None if free user."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.id, s.plan_id, s.status, s.ends_at, p.domain, p.name AS plan_name
+            FROM subscriptions s
+            JOIN plans p ON p.id = s.plan_id
+            WHERE s.user_id = %s
+              AND s.status = 'active'
+              AND (s.ends_at IS NULL OR s.ends_at > NOW())
+            LIMIT 1;
+        """, (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "subscription_id": row[0],
+            "plan_id": row[1],
+            "status": row[2],
+            "ends_at": row[3],
+            "domain": row[4],
+            "plan_name": row[5],
+        }
+    finally:
+        close_connection(conn)
+
 def get_user_by_id(user_id):
     conn = get_connection()
     try:
