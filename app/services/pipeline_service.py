@@ -7,7 +7,7 @@ from app.services.source_scrape_service import scrape_and_store
 from app.services.topic_compiler import compile_topic
 from app.services.compiled_topic_service import save_compiled_topic
 from app.services.child_topic_service import add_child_topics
-from app.models.article_candidate import create_candidate
+from app.models.article_candidate import create_candidate, update_candidate_status
 from slugify import slugify   # python-slugify
 from app.models.published_articles import publish_article
 from datetime import date, timedelta
@@ -50,14 +50,14 @@ def render_article_md(compiled: dict) -> str:
     # CASE STUDY
     case = compiled.get("case_study", {})
     if case:
-        parts.append("## Case Study\n")
+        parts.append("Case Study\n")
         if case.get("system"):
             parts.append(f"**System:** {case['system']}\n")
         if case.get("description"):
             parts.append(case["description"] + "\n")
 
         if case.get("key_takeaways"):
-            parts.append("### Key Takeaways\n")
+            parts.append("Key Takeaways\n")
             for k in case["key_takeaways"]:
                 parts.append(f"- {k}")
             parts.append("")
@@ -65,22 +65,22 @@ def render_article_md(compiled: dict) -> str:
     # INTERVIEW NOTES
     notes = compiled.get("interview_notes", {})
     if notes:
-        parts.append("## Interview Notes\n")
+        parts.append("Interview Notes\n")
 
         if notes.get("common_questions"):
-            parts.append("### Common Questions\n")
+            parts.append("Common Questions\n")
             for q in notes["common_questions"]:
                 parts.append(f"- {q}")
             parts.append("")
 
         if notes.get("common_mistakes"):
-            parts.append("### Common Mistakes\n")
+            parts.append("Common Mistakes\n")
             for m in notes["common_mistakes"]:
                 parts.append(f"- {m}")
             parts.append("")
 
         if notes.get("what_interviewers_look_for"):
-            parts.append("### What Interviewers Look For\n")
+            parts.append("What Interviewers Look For\n")
             for w in notes["what_interviewers_look_for"]:
                 parts.append(f"- {w}")
             parts.append("")
@@ -163,7 +163,6 @@ def slugify(text):
 
 
 def start_premium_pipeline_job(domain: str):
-    """Generates a job ID, saves it, and boots up the background thread."""
     job_id = str(uuid.uuid4())
     create_job(job_id)
 
@@ -177,9 +176,7 @@ def start_premium_pipeline_job(domain: str):
     return job_id
 
 
-# ==========================================
-# 2. PREMIUM BACKGROUND EXECUTOR
-# ==========================================
+
 def _run_premium_pipeline_job(job_id: str, domain: str):
     """Runs the pipeline and updates the job status upon success or failure."""
     update_job(job_id, "running")
@@ -200,28 +197,25 @@ def _run_premium_pipeline_job(job_id: str, domain: str):
                 print(f"⚠️ Email notification failed: {mail_err}")
     except Exception as e:
         update_job(job_id, "failed", error=str(e))
-        print(f"❌ Pipeline failed for {domain}: {e}")
+        print(f"Pipeline failed for {domain}: {e}")
 
 
-# ==========================================
-# 3. THE PREMIUM CORE LOGIC
-# ==========================================
 def run_premium_pipeline(domain: str):
     """Fetches, scrapes, compiles, and AUTO-PUBLISHES for tomorrow."""
     
-    # 1️⃣ Pick Topic for this specific domain
+
     topic = pick_topic_domain(domain)
     if not topic:
-        # Fallback: pick any available topic to avoid failures
+
         topic = pick_topic()
         if not topic:
             raise RuntimeError(f"No pending topics found for domain: {domain}")
 
     topic_id = topic["topic_node_id"]
     topic_name = topic["topic_name"]
-    print(f"🎯 Starting generation for: {topic_name} ({domain or 'auto'})")
+    print(f"Starting generation for: {topic_name} ({domain or 'auto'})")
 
-    # 2️⃣ Fetch & store sources
+
     fetched_sources = fetch_candidate_source(topic_name)
     store_sources_bulk(fetched_sources)
 
@@ -238,15 +232,15 @@ def run_premium_pipeline(domain: str):
     finally:
         close_connection(conn)
 
-    # 3️⃣ Scrape
+
     scraped_result = []
     for source_id, url in rows:
         scraped_result.append(scrape_and_store(source_id, url))
 
-    # 4️⃣ Compile topic via AI
+
     compiled = compile_topic(topic_name, [topic_name])
 
-    # 5️⃣ Persist compiled structure
+
     compiled_id = save_compiled_topic(topic_id, compiled)
 
     # 6️⃣ Derive ARTICLE FIELDS
@@ -277,6 +271,14 @@ def run_premium_pipeline(domain: str):
         diagram=diagram,
         admin_user_id=None,
         publish_date=tomorrow
+    )
+    # Mark candidate as approved so it doesn't appear in admin pending list
+    update_candidate_status(
+        candidate_id=candidate_id,
+        status="approved",
+        reason=None,
+        reviewed_by=None,
+        scheduled_for=tomorrow
     )
 
     print(f"🚀 AUTO-PUBLISHED '{title}' directly to DB (Scheduled for {tomorrow})")
@@ -335,7 +337,7 @@ def _run_all_domains_pipeline_job(job_id: str):
             print(f"⚠️ Email notification failed: {mail_err}")
     except Exception as e:
         update_job(job_id, "failed", error=str(e))
-        print(f"❌ All-domains pipeline failed: {e}")
+        print(f"All-domains pipeline failed: {e}")  
 
 
 def run_all_domains_pipeline():
@@ -353,10 +355,10 @@ def run_all_domains_pipeline():
 
     for domain in domains:
         try:
-            print(f"▶ Running pipeline for domain: {domain}")
+            print(f" Running pipeline for domain: {domain}")
             result = run_premium_pipeline(domain)
             successes.append(result)
-            print(f"✅ Completed: {domain} → {result['topic_name']}")
+            print(f"Completed: {domain} → {result['topic_name']}")
             try:
                 emails = get_admin_emails()
                 if emails and result.get("topic_name"):
@@ -365,7 +367,7 @@ def run_all_domains_pipeline():
                 print(f"⚠️ Email notification failed for {domain}: {mail_err}")
         except Exception as e:
             failures.append({"domain": domain, "error": str(e)})
-            print(f"❌ Failed: {domain} → {e}")
+            print(f"Failed: {domain} → {e}")
 
     return {
         "total_domains": len(domains),
