@@ -12,6 +12,6 @@ jobs:
     steps:
       - name: Trigger daily pipeline
         run: |
-          curl -X POST "${{ secrets.PIPELINE_URL }}" \
+          curl -X POST "${{ secrets.PIPELINE_URL}}" \
             -H "Authorization: Bearer ${{ secrets.PIPELINE_TOKEN }}" \
             -H "Content-Type: application/json"

@@ -14,5 +14,5 @@ jobs:
       - name: Trigger Premium Pipeline
         run: |
           curl -X POST "${{secrets.PREMIUM_PIPELINE_URL}}" \
-          -H "Authorization: Bearer ${{secrets.PIPELINE_TOKEN}}"
-          -H "Content-Type: application/json"
+            -H "Authorization: Bearer ${{ secrets.PIPELINE_TOKEN }}" \
+            -H "Content-Type: application/json"
