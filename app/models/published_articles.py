@@ -116,7 +116,6 @@ def get_todays_published_article(domain_name: str):
 
 
 def get_todays_free_article():
-    """Returns today's article from any random domain (for free users)."""
     conn = get_connection()
     try:
         cursor = conn.cursor()

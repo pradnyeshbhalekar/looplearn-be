@@ -1,4 +1,6 @@
 from flask import Blueprint, jsonify, request
+import uuid
+from flask import jsonify
 from app.services.pipeline_service import start_premium_pipeline_job, start_all_domains_pipeline_job
 from app.services.pipeline_job_service import start_pipeline_job
 from app.models.pipeline_jobs import get_job
@@ -11,6 +13,7 @@ CRON_SECRET = os.getenv("CRON_SECRET")
 pipeline_bp = Blueprint("pipeline", __name__, url_prefix="/api/pipeline")
 
 @pipeline_bp.post("/run")
+@require_pipeline_secret
 def run_pipeline_route():
     job_id = start_pipeline_job()
     return jsonify({
@@ -18,9 +21,6 @@ def run_pipeline_route():
         "status": "started"
     }), 202
 
-
-import uuid
-from flask import jsonify
 
 @pipeline_bp.get("/status/<job_id>")
 def get_pipeline_status(job_id):
