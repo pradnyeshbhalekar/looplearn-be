@@ -9,7 +9,7 @@ from app.models.published_articles import (
     get_todays_subscriber_article,
     get_article_by_slug_with_domain
 )
-from app.services.razorpay_service import razorpay_client
+from app.services.razorpay_service import razorpay_client, create_plan, create_subscription
 import os
 import hmac
 import hashlib
@@ -79,31 +79,41 @@ def mock_subscribe(user):
             amount_paise = int(monthly_price) * 100
         except Exception:
             return jsonify({"error": "invalid monthly_price"}), 400
-        try:
-            rp_plan = razorpay_client.plan.create({
-                "period": period,
-                "interval": interval,
-                "item": {
-                    "name": f"LoopLearn {plan_name}",
-                    "amount": amount_paise,
-                    "currency": "INR",
-                    "description": f"{plan_domain} subscription"
-                }
-            })
-        except Exception as erp:
-            return jsonify({"error": f"razorpay plan error: {str(erp)}"}), 502
+        rp_plan_id = None
+        if plan_row and len(plan_row) >= 1:
+            # fetch cached plan id if present
+            cursor.execute("SELECT razorpay_plan_id FROM plans WHERE id = %s", (plan_id_db,))
+            cached = cursor.fetchone()
+            rp_plan_id = cached[0] if cached and cached[0] else None
+        if not rp_plan_id:
+            try:
+                rp_plan = create_plan(
+                    period=period,
+                    interval=interval,
+                    item={
+                        "name": f"LoopLearn {plan_name}",
+                        "amount": amount_paise,
+                        "currency": "INR",
+                        "description": f"{plan_domain} subscription"
+                    }
+                )
+                rp_plan_id = rp_plan["id"]
+                cursor.execute("UPDATE plans SET razorpay_plan_id = %s WHERE id = %s", (rp_plan_id, plan_id_db))
+                conn.commit()
+            except Exception as erp:
+                return jsonify({"error": f"razorpay plan error: {str(erp)}"}), 502
         redirect_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/") + "/subscription/success"
         try:
-            rp_subscription = razorpay_client.subscription.create({
-                "plan_id": rp_plan["id"],
-                "total_count": total_count,
-                "customer_notify": 1,
-                "notes": {
+            rp_subscription = create_subscription(
+                plan_id=rp_plan_id,
+                total_count=total_count,
+                customer_notify=1,
+                notes={
                     "user_id": str(user_id),
                     "plan_id": str(plan_id_db),
                     "domain": plan_domain
                 }
-            })
+            )
         except Exception as ers:
             return jsonify({"error": f"razorpay subscription error: {str(ers)}"}), 502
         
@@ -119,7 +129,7 @@ def mock_subscribe(user):
             SET razorpay_subscription_id = %s,
                 razorpay_plan_id = %s
             WHERE id = %s
-        """, (rp_subscription.get("id"), rp_plan.get("id"), result[0]))
+        """, (rp_subscription.get("id"), rp_plan_id, result[0]))
         conn.commit()
 
         return jsonify({

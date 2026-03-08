@@ -43,6 +43,10 @@ def create_plans_table():
                 features JSONB
             );
         """)
+        cursor.execute("""
+            ALTER TABLE plans
+            ADD COLUMN IF NOT EXISTS razorpay_plan_id TEXT UNIQUE;
+        """)
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS subscriptions (
