@@ -1,12 +1,13 @@
 from flask import Flask,Blueprint,jsonify,request
 from app.config.db import get_connection,close_connection
 from app.utils.auth_decorators import require_auth
-from app.models.user import get_user_active_subscription
+from app.models.user import get_user_active_subscription, get_user_active_subscriptions
 from app.models.published_articles import (
     get_todays_published_article,
     get_latest_published_article,
     get_todays_published_article_pref_subscriber,
-    get_todays_subscriber_article
+    get_todays_subscriber_article,
+    get_article_by_slug_with_domain
 )
 from app.services.razorpay_service import razorpay_client
 import os
@@ -266,9 +267,16 @@ def my_subscription(user):
 @subscription_routes.get("/me/today")
 @require_auth
 def my_today_article(user):
-    subscription = get_user_active_subscription(user["user_id"])
-    if not subscription:
-        return jsonify({"error": "active subscription required"}), 403
+    q_domain = request.args.get("domain")
+    if q_domain:
+        subscription = {"plan_name": q_domain, "domain": q_domain}
+    else:
+        active = get_user_active_subscriptions(user["user_id"])
+        if not active:
+            return jsonify({"error": "active subscription required"}), 403
+        if len(active) > 1:
+            return jsonify({"error": "multiple subscriptions; specify domain query param"}), 400
+        subscription = active[0]
     article = get_todays_subscriber_article(subscription["domain"])
     if not article:
         article = get_todays_published_article(subscription["domain"])
@@ -281,6 +289,57 @@ def my_today_article(user):
         "domain": subscription["domain"],
     }
     return jsonify(article)
+ 
+@subscription_routes.get("/me/article/<slug>")
+@require_auth
+def my_article_by_slug(user, slug):
+    article = get_article_by_slug_with_domain(slug)
+    if not article:
+        return jsonify({"error": "not found"}), 404
+    active = get_user_active_subscriptions(user["user_id"])
+    allowed = False
+    for sub in active:
+        if sub["domain"] and sub["domain"].lower() == article["domain"].lower():
+            allowed = True
+            break
+        if sub["domain"] and sub["domain"].lower() == "all":
+            allowed = True
+            break
+    if not allowed:
+        return jsonify({"error": "subscription required for domain"}), 403
+    article["subscription"] = {
+        "domains": [s["domain"] for s in active],
+    }
+    return jsonify(article)
+
+@subscription_routes.get("/me/list")
+@require_auth
+def my_subscriptions_list(user):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.id, s.status, s.ends_at, s.plan_id, p.name, p.domain, s.razorpay_subscription_id
+            FROM subscriptions s
+            JOIN plans p ON p.id = s.plan_id
+            WHERE s.user_id = %s
+            ORDER BY s.started_at DESC NULLS LAST, s.id DESC
+        """, (user["user_id"],))
+        rows = cursor.fetchall()
+        subs = []
+        for row in rows:
+            subs.append({
+                "subscription_id": row[0],
+                "status": row[1],
+                "ends_at": row[2],
+                "plan_id": row[3],
+                "plan_name": row[4],
+                "domain": row[5],
+                "razorpay_subscription_id": row[6],
+            })
+        return jsonify({"subscriptions": subs})
+    finally:
+        close_connection(conn)
 
 @subscription_routes.post("/confirm")
 @require_auth

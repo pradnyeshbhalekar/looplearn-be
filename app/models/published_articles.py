@@ -186,6 +186,50 @@ def get_latest_published_article(domain_name: str):
     finally:
         close_connection(conn)
 
+def get_article_by_slug_with_domain(slug: str):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                pa.id,
+                pa.title,
+                pa.slug,
+                pa.article_md,
+                pa.diagram,
+                pa.published_at,
+                topic.name  AS topic_name,
+                domain.name AS domain_name,
+                COALESCE(av.audience, 'public') AS audience
+            FROM published_articles pa
+            LEFT JOIN article_visibility av
+                ON av.published_article_id = pa.id
+            JOIN concept_nodes topic
+                ON pa.topic_node_id = topic.id
+            JOIN concept_edges ce
+                ON ce.to_node_id = topic.id
+            JOIN concept_nodes domain
+                ON ce.from_node_id = domain.id
+               AND domain.node_type = 'domain'
+            WHERE pa.slug = %s
+            LIMIT 1;
+        """, (slug,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "title": row[1],
+            "slug": row[2],
+            "content": row[3],
+            "diagram": row[4],
+            "published_at": row[5],
+            "topic": row[6],
+            "domain": row[7],
+            "audience": row[8],
+        }
+    finally:
+        close_connection(conn)
 def get_todays_published_article_pref_subscriber(domain_name: str):
     conn = get_connection()
     try:

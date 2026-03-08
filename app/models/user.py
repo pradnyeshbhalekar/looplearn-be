@@ -141,6 +141,33 @@ def get_user_active_subscription(user_id):
     finally:
         close_connection(conn)
 
+def get_user_active_subscriptions(user_id):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.id, s.plan_id, s.status, s.ends_at, p.domain, p.name AS plan_name
+            FROM subscriptions s
+            JOIN plans p ON p.id = s.plan_id
+            WHERE s.user_id = %s
+              AND s.status = 'active'
+              AND (s.ends_at IS NULL OR s.ends_at > NOW())
+            ORDER BY s.started_at DESC NULLS LAST, s.id DESC;
+        """, (user_id,))
+        rows = cursor.fetchall()
+        result = []
+        for row in rows:
+            result.append({
+                "subscription_id": row[0],
+                "plan_id": row[1],
+                "status": row[2],
+                "ends_at": row[3],
+                "domain": row[4],
+                "plan_name": row[5],
+            })
+        return result
+    finally:
+        close_connection(conn)
 def get_user_by_id(user_id):
     conn = get_connection()
     try:
