@@ -21,3 +21,5 @@ python-slugify
 
 google-auth
 PyJWT
+
+razorpay

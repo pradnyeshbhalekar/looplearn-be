@@ -3,6 +3,7 @@ from google.genai import types
 import os
 import json
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 load_dotenv()
 
@@ -100,6 +101,7 @@ You must produce JSON in EXACTLY this format:
 }
 """
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=5, max=60), reraise=True)
 def compile_topic(topic_name: str, concepts: list[str]) -> dict:
     # Keep the user prompt clean and focused strictly on the data
     prompt = f"Topic: {topic_name}\nExtracted concepts: {', '.join(concepts)}"

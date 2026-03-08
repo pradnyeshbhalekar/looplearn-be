@@ -13,8 +13,8 @@ def create_sources_table():
                    summary TEXT,
                    content_text TEXT,
                    scrape_status TEXT DEFAULT 'pending',
-                   scrape_at TIMESTAMP NOT NULL,
-                   published_at TIMESTAMP NOT NULL,
+                   scrape_at TIMESTAMP,
+                   published_at TIMESTAMP,
                    fetched_at TIMESTAMP NOT NULL DEFAULT NOW()
                    );
 """)

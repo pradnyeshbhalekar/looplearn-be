@@ -22,6 +22,18 @@ def create_published_article():
     conn.commit()
     close_connection(conn)
     print("published_articles created")
+    
+def create_article_visibility_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS article_visibility(
+        published_article_id UUID PRIMARY KEY REFERENCES published_articles(id) ON DELETE CASCADE,
+        audience TEXT NOT NULL CHECK (audience IN ('public','subscriber'))
+    );
+    """)
+    conn.commit()
+    close_connection(conn)
 
 def publish_article(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date):
     conn = get_connection()
@@ -39,7 +51,19 @@ def publish_article(candidate_id,topic_node_id,title,slug,article_md,diagram,adm
     article_id = cursor.fetchone()[0]
     conn.commit()
     close_connection(conn)
+    set_article_audience(article_id, "public")
     return article_id
+def set_article_audience(article_id: str, audience: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO article_visibility (published_article_id, audience)
+        VALUES (%s, %s)
+        ON CONFLICT (published_article_id)
+        DO UPDATE SET audience = EXCLUDED.audience;
+    """, (article_id, audience))
+    conn.commit()
+    close_connection(conn)
 
 
 def get_published_by_slug(slug):
@@ -83,6 +107,8 @@ def get_todays_published_article(domain_name: str):
                 topic.name  AS topic_name,
                 domain.name AS domain_name
             FROM published_articles pa
+            LEFT JOIN article_visibility av
+                ON av.published_article_id = pa.id
             JOIN concept_nodes topic
                 ON pa.topic_node_id = topic.id
             JOIN concept_edges ce
@@ -92,6 +118,7 @@ def get_todays_published_article(domain_name: str):
                AND domain.node_type = 'domain'
             WHERE pa.scheduled_for::date = CURRENT_DATE
               AND LOWER(domain.name) = LOWER(%s)
+              AND (av.audience IS NULL OR av.audience IN ('public','subscriber'))
             ORDER BY pa.published_at DESC
             LIMIT 1;
         """, (domain_name,))
@@ -114,7 +141,203 @@ def get_todays_published_article(domain_name: str):
     finally:
         close_connection(conn)
 
+def get_latest_published_article(domain_name: str):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                pa.id,
+                pa.title,
+                pa.slug,
+                pa.article_md,
+                pa.diagram,
+                pa.published_at,
+                topic.name  AS topic_name,
+                domain.name AS domain_name
+            FROM published_articles pa
+            LEFT JOIN article_visibility av
+                ON av.published_article_id = pa.id
+            JOIN concept_nodes topic
+                ON pa.topic_node_id = topic.id
+            JOIN concept_edges ce
+                ON ce.to_node_id = topic.id
+            JOIN concept_nodes domain
+                ON ce.from_node_id = domain.id
+               AND domain.node_type = 'domain'
+            WHERE LOWER(domain.name) = LOWER(%s)
+              AND (av.audience IS NULL OR av.audience IN ('public','subscriber'))
+            ORDER BY pa.scheduled_for DESC NULLS LAST, pa.published_at DESC NULLS LAST
+            LIMIT 1;
+        """, (domain_name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "title": row[1],
+            "slug": row[2],
+            "content": row[3],
+            "diagram": row[4],
+            "published_at": row[5],
+            "topic": row[6],
+            "domain": row[7],
+        }
+    finally:
+        close_connection(conn)
 
+def get_todays_published_article_pref_subscriber(domain_name: str):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                pa.id,
+                pa.title,
+                pa.slug,
+                pa.article_md,
+                pa.diagram,
+                pa.published_at,
+                topic.name  AS topic_name,
+                domain.name AS domain_name,
+                COALESCE(av.audience, 'public') AS audience
+            FROM published_articles pa
+            LEFT JOIN article_visibility av
+                ON av.published_article_id = pa.id
+            JOIN concept_nodes topic
+                ON pa.topic_node_id = topic.id
+            JOIN concept_edges ce
+                ON ce.to_node_id = topic.id
+            JOIN concept_nodes domain
+                ON ce.from_node_id = domain.id
+               AND domain.node_type = 'domain'
+            WHERE pa.scheduled_for::date = CURRENT_DATE
+              AND LOWER(domain.name) = LOWER(%s)
+            ORDER BY 
+              CASE 
+                WHEN av.audience = 'subscriber' THEN 0
+                WHEN av.audience = 'public' THEN 1
+                ELSE 2
+              END,
+              pa.published_at DESC
+            LIMIT 1;
+        """, (domain_name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "title": row[1],
+            "slug": row[2],
+            "content": row[3],
+            "diagram": row[4],
+            "published_at": row[5],
+            "topic": row[6],
+            "domain": row[7],
+            "audience": row[8],
+        }
+    finally:
+        close_connection(conn)
+
+def get_todays_subscriber_article(domain_name: str):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                pa.id,
+                pa.title,
+                pa.slug,
+                pa.article_md,
+                pa.diagram,
+                pa.published_at,
+                topic.name  AS topic_name,
+                domain.name AS domain_name
+            FROM published_articles pa
+            JOIN article_visibility av
+                ON av.published_article_id = pa.id
+            JOIN concept_nodes topic
+                ON pa.topic_node_id = topic.id
+            JOIN concept_edges ce
+                ON ce.to_node_id = topic.id
+            JOIN concept_nodes domain
+                ON ce.from_node_id = domain.id
+               AND domain.node_type = 'domain'
+            WHERE pa.scheduled_for::date = CURRENT_DATE
+              AND LOWER(domain.name) = LOWER(%s)
+              AND av.audience = 'subscriber'
+            ORDER BY pa.published_at DESC NULLS LAST
+            LIMIT 1;
+        """, (domain_name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "title": row[1],
+            "slug": row[2],
+            "content": row[3],
+            "diagram": row[4],
+            "published_at": row[5],
+            "topic": row[6],
+            "domain": row[7],
+            "audience": "subscriber",
+        }
+    finally:
+        close_connection(conn)
+
+def get_latest_published_article_pref_subscriber(domain_name: str):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                pa.id,
+                pa.title,
+                pa.slug,
+                pa.article_md,
+                pa.diagram,
+                pa.published_at,
+                topic.name  AS topic_name,
+                domain.name AS domain_name,
+                COALESCE(av.audience, 'public') AS audience
+            FROM published_articles pa
+            LEFT JOIN article_visibility av
+                ON av.published_article_id = pa.id
+            JOIN concept_nodes topic
+                ON pa.topic_node_id = topic.id
+            JOIN concept_edges ce
+                ON ce.to_node_id = topic.id
+            JOIN concept_nodes domain
+                ON ce.from_node_id = domain.id
+               AND domain.node_type = 'domain'
+            WHERE LOWER(domain.name) = LOWER(%s)
+            ORDER BY 
+              CASE 
+                WHEN av.audience = 'subscriber' THEN 0
+                WHEN av.audience = 'public' THEN 1
+                ELSE 2
+              END,
+              pa.scheduled_for DESC NULLS LAST,
+              pa.published_at DESC NULLS LAST
+            LIMIT 1;
+        """, (domain_name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "title": row[1],
+            "slug": row[2],
+            "content": row[3],
+            "diagram": row[4],
+            "published_at": row[5],
+            "topic": row[6],
+            "domain": row[7],
+            "audience": row[8],
+        }
+    finally:
+        close_connection(conn)
 def get_todays_free_article():
     conn = get_connection()
     try:
@@ -131,6 +354,8 @@ def get_todays_free_article():
                 topic.name  AS topic_name,
                 domain.name AS domain_name
             FROM published_articles pa
+            LEFT JOIN article_visibility av
+                ON av.published_article_id = pa.id
             JOIN concept_nodes topic
                 ON pa.topic_node_id = topic.id
             JOIN concept_edges ce
@@ -139,6 +364,7 @@ def get_todays_free_article():
                 ON ce.from_node_id = domain.id
                AND domain.node_type = 'domain'
             WHERE pa.scheduled_for::date = CURRENT_DATE
+              AND (av.audience IS NULL OR av.audience = 'public')
             ORDER BY RANDOM()
             LIMIT 1;
         """)
@@ -161,6 +387,54 @@ def get_todays_free_article():
     finally:
         close_connection(conn)
 
+def get_todays_published_article_pref_subscriber(domain_name: str):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                pa.id,
+                pa.title,
+                pa.slug,
+                pa.article_md,
+                pa.diagram,
+                pa.published_at,
+                topic.name  AS topic_name,
+                domain.name AS domain_name,
+                COALESCE(av.audience, 'public') AS audience
+            FROM published_articles pa
+            LEFT JOIN article_visibility av
+                ON av.published_article_id = pa.id
+            JOIN concept_nodes topic
+                ON pa.topic_node_id = topic.id
+            JOIN concept_edges ce
+                ON ce.to_node_id = topic.id
+            JOIN concept_nodes domain
+                ON ce.from_node_id = domain.id
+               AND domain.node_type = 'domain'
+            WHERE pa.scheduled_for::date = CURRENT_DATE
+              AND LOWER(domain.name) = LOWER(%s)
+            ORDER BY 
+              CASE WHEN av.audience = 'subscriber' THEN 1 ELSE 0 END DESC,
+              pa.published_at DESC NULLS LAST
+            LIMIT 1;
+        """, (domain_name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "title": row[1],
+            "slug": row[2],
+            "content": row[3],
+            "diagram": row[4],
+            "published_at": row[5],
+            "topic": row[6],
+            "domain": row[7],
+            "audience": row[8],
+        }
+    finally:
+        close_connection(conn)
 
 def insert_published_article(title, slug, article_md, diagram, topic_node_id, scheduled_date):
     """Directly pushes an article to the published table, bypassing the candidate queue."""
@@ -176,6 +450,7 @@ def insert_published_article(title, slug, article_md, diagram, topic_node_id, sc
         
         article_id = cursor.fetchone()[0]
         conn.commit()
+        set_article_audience(article_id, "public")
         return article_id
     finally:
         close_connection(conn)

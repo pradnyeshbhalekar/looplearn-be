@@ -7,7 +7,7 @@ from app.models.topic_sources import create_topic_sources_table
 from app.models.compiled_topics import create_compiled_topics_tables
 from app.models.pipeline_jobs import create_pipeline_jobs
 from app.models.article_candidate import create_article_candidate
-from app.models.published_articles import create_published_article
+from app.models.published_articles import create_published_article, create_article_visibility_table
 from app.models.user import create_user_table,create_plans_table
 
 def init_db():
@@ -22,6 +22,7 @@ def init_db():
     create_pipeline_jobs()
     create_article_candidate()
     create_published_article()
+    create_article_visibility_table()
     create_user_table()
     create_plans_table()
     

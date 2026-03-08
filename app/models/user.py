@@ -50,11 +50,32 @@ def create_plans_table():
                 user_id UUID REFERENCES users(id) ON DELETE CASCADE,
                 plan_id UUID REFERENCES plans(id) ON DELETE CASCADE,
                 status TEXT CHECK (
-                    status IN ('active', 'paused', 'cancelled')
+                    status IN ('active', 'paused', 'cancelled', 'pending')
                 ),
                 started_at TIMESTAMP DEFAULT NOW(),
                 ends_at TIMESTAMP
             );
+        """)
+        cursor.execute("""
+            ALTER TABLE subscriptions
+            DROP CONSTRAINT IF EXISTS subscriptions_status_check;
+        """)
+        cursor.execute("""
+            ALTER TABLE subscriptions
+            ADD CONSTRAINT subscriptions_status_check
+            CHECK (status IN ('active', 'paused', 'cancelled', 'pending'));
+        """)
+        cursor.execute("""
+            ALTER TABLE subscriptions
+            ADD COLUMN IF NOT EXISTS razorpay_subscription_id TEXT UNIQUE;
+        """)
+        cursor.execute("""
+            ALTER TABLE subscriptions
+            ADD COLUMN IF NOT EXISTS razorpay_plan_id TEXT;
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_subscriptions_user_status
+            ON subscriptions(user_id, status);
         """)
         
         conn.commit()

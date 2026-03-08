@@ -9,11 +9,11 @@ def create_compiled_topics_tables():
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     topic_node_id UUID NOT NULL REFERENCES concept_nodes(id) ON DELETE CASCADE,
 
-    theory JSONB NOT NULL,
-    topic_schema JSONB NOT NULL,
-    case_study JSONB NOT NULL,
-    mermaid JSONB NOT NULL,
-    interview_notes JSONB NOT NULL,
+    theory JSONB,
+    topic_schema JSONB,
+    case_study JSONB,
+    mermaid JSONB,
+    interview_notes JSONB,
 
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (topic_node_id)

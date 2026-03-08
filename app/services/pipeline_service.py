@@ -9,11 +9,12 @@ from app.services.compiled_topic_service import save_compiled_topic
 from app.services.child_topic_service import add_child_topics
 from app.models.article_candidate import create_candidate, update_candidate_status
 from slugify import slugify   # python-slugify
-from app.models.published_articles import publish_article
+from app.models.published_articles import publish_article, set_article_audience
 from datetime import date, timedelta
 import threading
 import uuid
 from app.models.pipeline_jobs import create_job, update_job
+from app.models.graph import insert_node, insert_or_increment_edge
 
 def render_article_md(compiled: dict) -> str:
     parts = []
@@ -272,6 +273,12 @@ def run_premium_pipeline(domain: str):
         admin_user_id=None,
         publish_date=tomorrow
     )
+    set_article_audience(article_id, "subscriber")
+    try:
+        domain_node = insert_node(domain, "domain")
+        insert_or_increment_edge(domain_node[0], topic_id)
+    except Exception as _:
+        pass
     # Mark candidate as approved so it doesn't appear in admin pending list
     update_candidate_status(
         candidate_id=candidate_id,
@@ -345,6 +352,7 @@ def run_all_domains_pipeline():
     from app.models.graph import get_all_domain_names
     from app.utils.email_utils import get_admin_emails
     from app.services.email_service import send_admin_notification
+    import time
 
     domains = get_all_domain_names()
     if not domains:
@@ -359,6 +367,7 @@ def run_all_domains_pipeline():
             result = run_premium_pipeline(domain)
             successes.append(result)
             print(f"Completed: {domain} → {result['topic_name']}")
+            time.sleep(5)
             try:
                 emails = get_admin_emails()
                 if emails and result.get("topic_name"):
