@@ -72,28 +72,39 @@ def mock_subscribe(user):
             total_count = 12
             interval_days = "30 days"
         interval = 1
-        amount_paise = int(monthly_price) * 100
-        rp_plan = razorpay_client.plan.create({
-            "period": period,
-            "interval": interval,
-            "item": {
-                "name": f"LoopLearn {plan_name}",
-                "amount": amount_paise,
-                "currency": "INR",
-                "description": f"{plan_domain} subscription"
-            }
-        })
+        if monthly_price is None:
+            return jsonify({"error": "plan has no monthly_price"}), 400
+        try:
+            amount_paise = int(monthly_price) * 100
+        except Exception:
+            return jsonify({"error": "invalid monthly_price"}), 400
+        try:
+            rp_plan = razorpay_client.plan.create({
+                "period": period,
+                "interval": interval,
+                "item": {
+                    "name": f"LoopLearn {plan_name}",
+                    "amount": amount_paise,
+                    "currency": "INR",
+                    "description": f"{plan_domain} subscription"
+                }
+            })
+        except Exception as erp:
+            return jsonify({"error": f"razorpay plan error: {str(erp)}"}), 502
         redirect_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/") + "/subscription/success"
-        rp_subscription = razorpay_client.subscription.create({
-            "plan_id": rp_plan["id"],
-            "total_count": total_count,
-            "customer_notify": 1,
-            "notes": {
-                "user_id": str(user_id),
-                "plan_id": str(plan_id_db),
-                "domain": plan_domain
-            }
-        })
+        try:
+            rp_subscription = razorpay_client.subscription.create({
+                "plan_id": rp_plan["id"],
+                "total_count": total_count,
+                "customer_notify": 1,
+                "notes": {
+                    "user_id": str(user_id),
+                    "plan_id": str(plan_id_db),
+                    "domain": plan_domain
+                }
+            })
+        except Exception as ers:
+            return jsonify({"error": f"razorpay subscription error: {str(ers)}"}), 502
         
         cursor.execute(f"""
             INSERT INTO subscriptions (user_id, plan_id, status, started_at, ends_at) 
