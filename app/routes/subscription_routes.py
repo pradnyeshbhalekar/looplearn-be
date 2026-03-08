@@ -83,6 +83,7 @@ def mock_subscribe(user):
                 "description": f"{plan_domain} subscription"
             }
         })
+        redirect_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/") + "/subscription/success"
         rp_subscription = razorpay_client.subscription.create({
             "plan_id": rp_plan["id"],
             "total_count": total_count,
@@ -116,7 +117,8 @@ def mock_subscribe(user):
             "razorpay": {
                 "subscription_id": rp_subscription.get("id"),
                 "status": rp_subscription.get("status"),
-                "short_url": rp_subscription.get("short_url")
+                "short_url": rp_subscription.get("short_url"),
+                "redirect_url": redirect_url
             }
         })
     
