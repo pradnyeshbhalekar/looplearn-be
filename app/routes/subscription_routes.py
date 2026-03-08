@@ -194,6 +194,22 @@ def razorpay_webhook():
                     WHERE user_id = %s AND plan_id = %s AND status = 'pending';
                 """, (user_id, plan_id))
             conn.commit()
+        elif event in ("subscription.charged",):
+            if rzp_sub_id:
+                cursor.execute(f"""
+                    UPDATE subscriptions
+                    SET status = 'active',
+                        ends_at = NOW() + INTERVAL '{interval_days}'
+                    WHERE razorpay_subscription_id = %s;
+                """, (rzp_sub_id,))
+            else:
+                cursor.execute(f"""
+                    UPDATE subscriptions
+                    SET status = 'active',
+                        ends_at = NOW() + INTERVAL '{interval_days}'
+                    WHERE user_id = %s AND plan_id = %s;
+                """, (user_id, plan_id))
+            conn.commit()
         elif event in ("subscription.halted", "subscription.paused", "subscription.cancelled") or status in ("halted", "paused", "cancelled"):
             if rzp_sub_id:
                 cursor.execute("""
@@ -216,12 +232,35 @@ def razorpay_webhook():
 @require_auth
 def my_subscription(user):
     sub = get_user_active_subscription(user["user_id"])
-    if not sub:
-        return jsonify({"status": "none"})
-    return jsonify({
-        "status": "active",
-        "subscription": sub
-    })
+    if sub:
+        return jsonify({"status": "active","subscription": sub})
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.id, s.status, s.ends_at, s.plan_id, p.name, p.domain
+            FROM subscriptions s
+            JOIN plans p ON p.id = s.plan_id
+            WHERE s.user_id = %s
+            ORDER BY s.started_at DESC NULLS LAST, s.id DESC
+            LIMIT 1
+        """, (user["user_id"],))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "none"})
+        return jsonify({
+            "status": row[1],
+            "subscription": {
+                "subscription_id": row[0],
+                "status": row[1],
+                "ends_at": row[2],
+                "plan_id": row[3],
+                "plan_name": row[4],
+                "domain": row[5],
+            }
+        })
+    finally:
+        close_connection(conn)
 
 
 @subscription_routes.get("/me/today")
@@ -242,3 +281,55 @@ def my_today_article(user):
         "domain": subscription["domain"],
     }
     return jsonify(article)
+
+@subscription_routes.post("/confirm")
+@require_auth
+def confirm_subscription(user):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, plan_id, razorpay_subscription_id, status
+            FROM subscriptions
+            WHERE user_id = %s
+            ORDER BY started_at DESC NULLS LAST, id DESC
+            LIMIT 1
+        """, (user["user_id"],))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "no subscription"}), 404
+        sub_id, plan_id, rzp_sub_id, status = row
+        if not rzp_sub_id:
+            return jsonify({"error": "missing razorpay_subscription_id"}), 400
+        try:
+            rzp = razorpay_client.subscription.fetch(rzp_sub_id)
+        except Exception as erp:
+            return jsonify({"error": f"razorpay fetch error: {str(erp)}"}), 502
+        r_status = (rzp or {}).get("status")
+        cursor.execute("SELECT billing_cycle FROM plans WHERE id = %s", (plan_id,))
+        prow = cursor.fetchone()
+        cycle_raw = (prow[0] if prow else "monthly") or "monthly"
+        cycle_raw = cycle_raw.strip().lower()
+        if cycle_raw in ("monthly", "month", "m"):
+            interval_days = "30 days"
+        elif cycle_raw in ("yearly", "annual", "year", "y"):
+            interval_days = "365 days"
+        elif cycle_raw in ("weekly", "week", "w"):
+            interval_days = "7 days"
+        elif cycle_raw in ("daily", "day", "d"):
+            interval_days = "1 day"
+        else:
+            interval_days = "30 days"
+        if r_status in ("active","authenticated"):
+            cursor.execute(f"""
+                UPDATE subscriptions
+                SET status = 'active',
+                    started_at = COALESCE(started_at, NOW()),
+                    ends_at = NOW() + INTERVAL '{interval_days}'
+                WHERE id = %s
+            """, (sub_id,))
+            conn.commit()
+            return jsonify({"ok": True, "status": "active"})
+        return jsonify({"ok": False, "status": r_status or "unknown"})
+    finally:
+        close_connection(conn)
