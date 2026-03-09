@@ -82,9 +82,19 @@ def list_candidates(status="pending"):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT * FROM article_candidate WHERE status=%s ORDER BY created_at DESC;
-                   """,(status,))
+    if status == "approved":
+        cursor.execute("""
+            SELECT * FROM article_candidate 
+            WHERE status=%s AND scheduled_for >= CURRENT_DATE
+            ORDER BY scheduled_for ASC;
+        """, (status,))
+    else:
+        cursor.execute("""
+            SELECT * FROM article_candidate 
+            WHERE status=%s 
+            ORDER BY created_at DESC;
+        """, (status,))
+        
     columns = [desc[0] for desc in cursor.description]
     rows = cursor.fetchall()
 

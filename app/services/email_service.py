@@ -8,7 +8,7 @@ resend.api_key = RESEND_API_KEY
 
 # The "From" email must be a verified domain in your Resend account.
 # We will use SMTP_USER as the sender if it's set, otherwise fallback to a generic onboarding email.
-SENDER_EMAIL = os.getenv("SMTP_USER", "onboarding@resend.dev")
+SENDER_EMAIL = "onboarding@resend.dev"
 
 def _send_email(to_email: str, subject: str, html_body: str):
     """Low-level helper: sends a single HTML email using Resend."""

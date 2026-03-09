@@ -12,6 +12,13 @@ def pending_candidates(user):
     rows = list_candidates("pending")
     return jsonify(rows)
 
+@admin_candidate_routes.get("/queue")
+@require_admin
+def queued_candidates(user):
+    # This returns all approved candidates (queued for future deployment)
+    rows = list_candidates("approved")
+    return jsonify(rows)
+
 
 @admin_candidate_routes.post("/approve/<candidate_id>")
 @require_admin

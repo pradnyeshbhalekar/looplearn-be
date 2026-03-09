@@ -146,6 +146,8 @@ def run_pipeline():
     if "mermaid" in compiled:
         diagram = compiled["mermaid"].get("code")
 
+    domain_name = topic.get("domain", "")
+
     # Generate Audio
     from app.services.audio_service import create_commuter_audio
     print(f"🎙️ Generating commuter audio for topic: {topic_name}...")
@@ -274,6 +276,8 @@ def run_premium_pipeline(domain: str):
     diagram = None
     if "mermaid" in compiled:
         diagram = compiled["mermaid"].get("code")
+
+    domain_name = topic.get("domain", domain)
 
     # Generate Audio
     from app.services.audio_service import create_commuter_audio

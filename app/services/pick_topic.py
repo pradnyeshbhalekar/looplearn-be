@@ -72,7 +72,7 @@ def pick_topic():
     conn.commit()
     close_connection(conn)
 
-    return {"topic_node_id": str(picked_id), "topic_name": picked_name}
+    return {"topic_node_id": str(picked_id), "topic_name": picked_name, "domain": domain_name}
 
 
 from app.config.db import get_connection, close_connection
@@ -107,15 +107,19 @@ def pick_topic_domain(domain_name=None):
                 LIMIT 1;
             """, (domain_name,))
         else:
+            # Query randomly and also fetch its linked domain
             cursor.execute("""
-                SELECT id, name
-                FROM concept_nodes
-                WHERE node_type = 'topic'
-                  AND id NOT IN (
+                SELECT t.id, t.name, d.name
+                FROM concept_nodes t
+                LEFT JOIN concept_edges e ON t.id = e.to_node_id
+                LEFT JOIN concept_nodes d ON e.from_node_id = d.id AND d.node_type = 'domain'
+                WHERE t.node_type = 'concept'
+                  AND t.id NOT IN (
                       SELECT topic_node_id 
                       FROM published_articles 
                       WHERE topic_node_id IS NOT NULL
                   )
+                ORDER BY RANDOM()
                 LIMIT 1;
             """)
         
@@ -123,9 +127,11 @@ def pick_topic_domain(domain_name=None):
         
         if row:
             print(f"✅ Found topic: {row[1]} (ID: {row[0]})")
+            actual_domain = domain_name if domain_name else (row[2] if len(row) > 2 else "System Design")
             return {
                 "topic_node_id": row[0], 
-                "topic_name": row[1]
+                "topic_name": row[1],
+                "domain": actual_domain
             }
         
         print(f"❌ No unused topics found for domain: {domain_name}")
