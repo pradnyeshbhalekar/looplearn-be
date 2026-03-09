@@ -61,9 +61,8 @@ import re
 
 def create_commuter_audio(text_content, topic_slug, domain_name="Software Engineering", topic_title="this topic"):
     """Returns a tuple: (audio_url, timestamps)"""
-    # Remove markdown syntax to prevent TTS from reading things like "hash hash"
-    clean_text = re.sub(r'#|\*|_|`', '', text_content)
-    # Also clean up multiple newlines or spaces if necessary, though TTS handles them okay
+    # Remove markdown syntax to prevent TTS from reading things like "hash hash" or "asterisk asterisk"
+    clean_text = re.sub(r'[#*_`]', '', text_content)
     
     # Prepend the polite intro
     intro_text = f"Hello there, welcome to LoopLearn! Today at {domain_name}, we will have a look at {topic_title}. "

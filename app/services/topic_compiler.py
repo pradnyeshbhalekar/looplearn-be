@@ -56,19 +56,16 @@ Focus on architecture, trade-offs, implementation realities, and failure modes.
 
 Avoid textbook-style definitions.
 
-Case studies must be high-level, architectural, and based on well-known public companies.
-
-DO NOT extract concepts from the provided case study.
-
-Keep explanations engineering-focused and practical, not academic.
+- Case studies must be highly engaging, high-level, architectural, and based on well-known public companies. Make them interesting, not boring.
+- DO NOT extract concepts from the provided case study.
+- Keep explanations engineering-focused and practical, not academic.
 - topic_schema must describe real-world system components and concepts, NOT data schemas, field definitions, or JSON/OpenAPI metadata.
-
 - Do NOT include words like: type, properties, required, description.
 
-- **MERMAID DIAGRAM RULES**: 
+- **MERMAID DIAGRAM RULES (CRITICAL)**: 
   - Ensure STRICT syntax compatibility. Do NOT use unescaped parentheses `()`, brackets `[]`, braces `{}`, quotes `""`, or HTML-like tags `<>` inside node labels.
   - Wrap any node labels containing special characters or spaces in double quotes. ALWAYS format nodes as: nodeID["Node Label (Extra Info)"] instead of nodeID[Node Label (Extra Info)].
-  - Keep the graph simple and top-to-bottom or left-to-right (`graph TD` or `graph LR`).
+  - Keep the graph extremely simple and top-to-bottom or left-to-right (`graph TD` or `graph LR`). Avoid complex nesting that fails to render.
 
 RETURN STRICT JSON ONLY.
 
@@ -80,6 +77,10 @@ You must produce JSON in EXACTLY this format:
 
 {
 "topic": "",
+"intro_hook": "An engaging hook for the article. (e.g., 'Ever wonder how a server going down doesn't bring down the whole system?')",
+"what_is_it": "What is this technique or concept? Explain it clearly.",
+"why_is_it_important": "Why is it so important in real-world systems?",
+"what_if_it_wasnt_there": "What would happen if this technique didn't exist? What problems would arise?",
 "theory": {
 "overview": "",
 "key_principles": [],
@@ -89,8 +90,8 @@ You must produce JSON in EXACTLY this format:
   "Component or Concept Name": "Engineering-focused explanation describing how this concept is implemented in real systems, how it interacts with other components, operational considerations, security implications, and common failure modes."
 },
 "case_study": {
-"system": "",
-"description": "",
+"system": "The name of the company or system",
+"description": "An engaging, interesting, and detailed architectural description of how this system uses the concept in the real world.",
 "key_takeaways": []
 },
 "mermaid": {

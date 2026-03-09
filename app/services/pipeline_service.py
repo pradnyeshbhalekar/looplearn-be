@@ -21,6 +21,22 @@ def render_article_md(compiled: dict) -> str:
 
     # Title
     parts.append(f"# {compiled.get('topic')}\n")
+    
+    # Hook & Introduction
+    if compiled.get("intro_hook"):
+        parts.append(f"*{compiled.get('intro_hook')}*\n")
+        
+    if compiled.get("what_is_it"):
+        parts.append("## What Is It?\n")
+        parts.append(str(compiled.get("what_is_it")) + "\n")
+        
+    if compiled.get("why_is_it_important"):
+        parts.append("## Why Is It Important?\n")
+        parts.append(str(compiled.get("why_is_it_important")) + "\n")
+        
+    if compiled.get("what_if_it_wasnt_there"):
+        parts.append("## What If It Wasn't There?\n")
+        parts.append(str(compiled.get("what_if_it_wasnt_there")) + "\n")
 
     # THEORY
     theory = compiled.get("theory", {})
@@ -51,14 +67,14 @@ def render_article_md(compiled: dict) -> str:
     # CASE STUDY
     case = compiled.get("case_study", {})
     if case:
-        parts.append("Case Study\n")
+        parts.append("## Case Study\n")
         if case.get("system"):
             parts.append(f"**System:** {case['system']}\n")
         if case.get("description"):
             parts.append(case["description"] + "\n")
 
         if case.get("key_takeaways"):
-            parts.append("Key Takeaways\n")
+            parts.append("### Key Takeaways\n")
             for k in case["key_takeaways"]:
                 parts.append(f"- {k}")
             parts.append("")
@@ -66,22 +82,22 @@ def render_article_md(compiled: dict) -> str:
     # INTERVIEW NOTES
     notes = compiled.get("interview_notes", {})
     if notes:
-        parts.append("Interview Notes\n")
+        parts.append("## Interview Notes\n")
 
         if notes.get("common_questions"):
-            parts.append("Common Questions\n")
+            parts.append("### Common Questions\n")
             for q in notes["common_questions"]:
                 parts.append(f"- {q}")
             parts.append("")
 
         if notes.get("common_mistakes"):
-            parts.append("Common Mistakes\n")
+            parts.append("### Common Mistakes\n")
             for m in notes["common_mistakes"]:
                 parts.append(f"- {m}")
             parts.append("")
 
         if notes.get("what_interviewers_look_for"):
-            parts.append("What Interviewers Look For\n")
+            parts.append("### What Interviewers Look For\n")
             for w in notes["what_interviewers_look_for"]:
                 parts.append(f"- {w}")
             parts.append("")
