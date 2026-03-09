@@ -130,6 +130,11 @@ def run_pipeline():
     if "mermaid" in compiled:
         diagram = compiled["mermaid"].get("code")
 
+    # Generate Audio
+    from app.services.audio_service import create_commuter_audio
+    print(f"🎙️ Generating commuter audio for topic: {topic_name}...")
+    audio_url, timestamps = create_commuter_audio(article_md, slug)
+
     # 5️⃣ Create candidate article
     candidate_id = create_candidate(
         compiled_topic_id=compiled_id,
@@ -137,7 +142,8 @@ def run_pipeline():
         title=title,
         slug=slug,
         article_md=article_md,
-        diagram=diagram
+        diagram=diagram,
+        audio_url=audio_url
     )
 
     print("✅ CANDIDATE CREATED:", candidate_id)
@@ -253,6 +259,11 @@ def run_premium_pipeline(domain: str):
     if "mermaid" in compiled:
         diagram = compiled["mermaid"].get("code")
 
+    # Generate Audio
+    from app.services.audio_service import create_commuter_audio
+    print(f"🎙️ Generating commuter audio for topic: {topic_name}...")
+    audio_url, timestamps = create_commuter_audio(article_md, slug)
+
     # 7️⃣ Create candidate and AUTO-PUBLISH
     tomorrow = date.today() + timedelta(days=1)
     candidate_id = create_candidate(
@@ -261,7 +272,8 @@ def run_premium_pipeline(domain: str):
         title=title,
         slug=slug,
         article_md=article_md,
-        diagram=diagram
+        diagram=diagram,
+        audio_url=audio_url
     )
     article_id = publish_article(
         candidate_id=candidate_id,
@@ -271,7 +283,8 @@ def run_premium_pipeline(domain: str):
         article_md=article_md,
         diagram=diagram,
         admin_user_id=None,
-        publish_date=tomorrow
+        publish_date=tomorrow,
+        audio_url=audio_url
     )
     set_article_audience(article_id, "subscriber")
     try:

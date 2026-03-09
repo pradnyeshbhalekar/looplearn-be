@@ -23,3 +23,7 @@ google-auth
 PyJWT
 
 razorpay
+
+cloudinary
+edge-tts
+asyncio

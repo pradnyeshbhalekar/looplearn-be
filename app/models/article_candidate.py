@@ -27,6 +27,7 @@ def create_article_candidate():
 
             reviewed_by UUID REFERENCES users(id),
             reviewed_at TIMESTAMP,
+            audio_url TEXT,
 
             created_at TIMESTAMP DEFAULT NOW()
         );
@@ -35,7 +36,7 @@ def create_article_candidate():
     close_connection(conn)
 
 def create_candidate(
-        compiled_topic_id,topic_node_id,title,slug,article_md,diagram=None
+        compiled_topic_id,topic_node_id,title,slug,article_md,diagram=None, audio_url=None
 ):
     conn = get_connection()
     cursor = conn.cursor()
@@ -46,9 +47,10 @@ def create_candidate(
                    title,
                    slug,
                    article_md,
-                   diagram
+                   diagram,
+                   audio_url
                    )
-                   VALUES (%s,%s,%s,%s,%s,%s)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s)
                    RETURNING id;
                    """,(
                        compiled_topic_id
@@ -57,6 +59,7 @@ def create_candidate(
                        ,slug
                        ,article_md
                        ,diagram
+                       ,audio_url
                    ))
     
     candidate_id = cursor.fetchone()[0]

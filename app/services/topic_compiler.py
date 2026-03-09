@@ -65,6 +65,11 @@ Keep explanations engineering-focused and practical, not academic.
 
 - Do NOT include words like: type, properties, required, description.
 
+- **MERMAID DIAGRAM RULES**: 
+  - Ensure STRICT syntax compatibility. Do NOT use unescaped parentheses `()`, brackets `[]`, braces `{}`, quotes `""`, or HTML-like tags `<>` inside node labels.
+  - Wrap any node labels containing special characters or spaces in double quotes. ALWAYS format nodes as: nodeID["Node Label (Extra Info)"] instead of nodeID[Node Label (Extra Info)].
+  - Keep the graph simple and top-to-bottom or left-to-right (`graph TD` or `graph LR`).
+
 RETURN STRICT JSON ONLY.
 
 NO MARKDOWN.

@@ -13,7 +13,7 @@ def approve_candidate(candidate_id, admin_user_id, publish_date=None):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT topic_node_id, title, slug, article_md, diagram
+        SELECT topic_node_id, title, slug, article_md, diagram, audio_url
         FROM article_candidate
         WHERE id = %s AND status = 'pending';
     """, (candidate_id,))
@@ -23,7 +23,7 @@ def approve_candidate(candidate_id, admin_user_id, publish_date=None):
         close_connection(conn)
         raise ValueError("Invalid candidate")
 
-    topic_node_id, title, slug, article_md, diagram = row
+    topic_node_id, title, slug, article_md, diagram, audio_url = row
 
 
     publish_article(
@@ -34,7 +34,8 @@ def approve_candidate(candidate_id, admin_user_id, publish_date=None):
         article_md=article_md,
         diagram=diagram,
         admin_user_id=admin_user_id,
-        publish_date=publish_date
+        publish_date=publish_date,
+        audio_url=audio_url
     )
 
     cursor.execute("""

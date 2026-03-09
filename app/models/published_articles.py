@@ -16,7 +16,8 @@ def create_published_article():
                    diagram TEXT,
                    published_at TIMESTAMP DEFAULT NOW(),
                    published_by UUID,
-                   scheduled_for DATE NOT NULL
+                   scheduled_for DATE NOT NULL,
+                   audio_url TEXT   
                    )
                    """)
     conn.commit()
@@ -35,19 +36,20 @@ def create_article_visibility_table():
     conn.commit()
     close_connection(conn)
 
-def publish_article(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date):
+def publish_article(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date, audio_url=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-          INSERT INTO published_articles(
+            INSERT INTO published_articles(
                    candidate_id,
                    topic_node_id,
                    title,
                    slug,
                    article_md,
-                   diagram,published_by,scheduled_for
-                   ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id;
-                   """,(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date))
+                   diagram,published_by,scheduled_for,
+                   audio_url
+                   ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id;
+                   """,(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date, audio_url))
     article_id = cursor.fetchone()[0]
     conn.commit()
     close_connection(conn)
@@ -71,7 +73,7 @@ def get_published_by_slug(slug):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT title, article_md, diagram, published_at
+        SELECT title, article_md, diagram, audio_url, published_at
         FROM published_articles
         WHERE slug = %s
         LIMIT 1
@@ -103,6 +105,7 @@ def get_todays_published_article(domain_name: str):
                 pa.slug,
                 pa.article_md,
                 pa.diagram,
+                pa.audio_url,
                 pa.published_at,
                 topic.name  AS topic_name,
                 domain.name AS domain_name
@@ -134,9 +137,11 @@ def get_todays_published_article(domain_name: str):
             "slug": row[2],
             "content": row[3],
             "diagram": row[4],
-            "published_at": row[5],
-            "topic": row[6],
-            "domain": row[7],
+            "audio_url": row[5],
+
+            "published_at": row[6],
+            "topic": row[7],
+            "domain": row[8],
         }
     finally:
         close_connection(conn)
@@ -152,6 +157,7 @@ def get_latest_published_article(domain_name: str):
                 pa.slug,
                 pa.article_md,
                 pa.diagram,
+                pa.audio_url,
                 pa.published_at,
                 topic.name  AS topic_name,
                 domain.name AS domain_name
@@ -179,9 +185,11 @@ def get_latest_published_article(domain_name: str):
             "slug": row[2],
             "content": row[3],
             "diagram": row[4],
-            "published_at": row[5],
-            "topic": row[6],
-            "domain": row[7],
+            "audio_url": row[5],
+
+            "published_at": row[6],
+            "topic": row[7],
+            "domain": row[8],
         }
     finally:
         close_connection(conn)
@@ -197,6 +205,7 @@ def get_article_by_slug_with_domain(slug: str):
                 pa.slug,
                 pa.article_md,
                 pa.diagram,
+                pa.audio_url,
                 pa.published_at,
                 topic.name  AS topic_name,
                 domain.name AS domain_name,
@@ -223,10 +232,12 @@ def get_article_by_slug_with_domain(slug: str):
             "slug": row[2],
             "content": row[3],
             "diagram": row[4],
-            "published_at": row[5],
-            "topic": row[6],
-            "domain": row[7],
-            "audience": row[8],
+            "audio_url": row[5],
+
+            "published_at": row[6],
+            "topic": row[7],
+            "domain": row[8],
+            "audience": row[9],
         }
     finally:
         close_connection(conn)
@@ -241,6 +252,7 @@ def get_todays_published_article_pref_subscriber(domain_name: str):
                 pa.slug,
                 pa.article_md,
                 pa.diagram,
+                pa.audio_url,
                 pa.published_at,
                 topic.name  AS topic_name,
                 domain.name AS domain_name,
@@ -275,10 +287,12 @@ def get_todays_published_article_pref_subscriber(domain_name: str):
             "slug": row[2],
             "content": row[3],
             "diagram": row[4],
-            "published_at": row[5],
-            "topic": row[6],
-            "domain": row[7],
-            "audience": row[8],
+            "audio_url": row[5],
+
+            "published_at": row[6],
+            "topic": row[7],
+            "domain": row[8],
+            "audience": row[9],
         }
     finally:
         close_connection(conn)
@@ -294,6 +308,7 @@ def get_todays_subscriber_article(domain_name: str):
                 pa.slug,
                 pa.article_md,
                 pa.diagram,
+                pa.audio_url,
                 pa.published_at,
                 topic.name  AS topic_name,
                 domain.name AS domain_name
@@ -322,9 +337,11 @@ def get_todays_subscriber_article(domain_name: str):
             "slug": row[2],
             "content": row[3],
             "diagram": row[4],
-            "published_at": row[5],
-            "topic": row[6],
-            "domain": row[7],
+            "audio_url": row[5],
+
+            "published_at": row[6],
+            "topic": row[7],
+            "domain": row[8],
             "audience": "subscriber",
         }
     finally:
@@ -341,6 +358,7 @@ def get_latest_published_article_pref_subscriber(domain_name: str):
                 pa.slug,
                 pa.article_md,
                 pa.diagram,
+                pa.audio_url,
                 pa.published_at,
                 topic.name  AS topic_name,
                 domain.name AS domain_name,
@@ -375,10 +393,12 @@ def get_latest_published_article_pref_subscriber(domain_name: str):
             "slug": row[2],
             "content": row[3],
             "diagram": row[4],
-            "published_at": row[5],
-            "topic": row[6],
-            "domain": row[7],
-            "audience": row[8],
+            "audio_url": row[5],
+
+            "published_at": row[6],
+            "topic": row[7],
+            "domain": row[8],
+            "audience": row[9],
         }
     finally:
         close_connection(conn)
@@ -394,6 +414,7 @@ def get_todays_article():
                 pa.slug,
                 pa.article_md,
                 pa.diagram,
+                pa.audio_url,
                 pa.published_at,
                 topic.name  AS topic_name,
                 domain.name AS domain_name,
@@ -424,10 +445,12 @@ def get_todays_article():
             "slug": row[2],
             "content": row[3],
             "diagram": row[4],
-            "published_at": row[5],
-            "topic": row[6],
-            "domain": row[7],
-            "audience": row[8],
+            "audio_url": row[5],
+
+            "published_at": row[6],
+            "topic": row[7],
+            "domain": row[8],
+            "audience": row[9],
         }
     finally:
         close_connection(conn)
@@ -443,6 +466,7 @@ def get_todays_published_article_pref_subscriber(domain_name: str):
                 pa.slug,
                 pa.article_md,
                 pa.diagram,
+                pa.audio_url,
                 pa.published_at,
                 topic.name  AS topic_name,
                 domain.name AS domain_name,
@@ -473,25 +497,27 @@ def get_todays_published_article_pref_subscriber(domain_name: str):
             "slug": row[2],
             "content": row[3],
             "diagram": row[4],
-            "published_at": row[5],
-            "topic": row[6],
-            "domain": row[7],
-            "audience": row[8],
+            "audio_url": row[5],
+
+            "published_at": row[6],
+            "topic": row[7],
+            "domain": row[8],
+            "audience": row[9],
         }
     finally:
         close_connection(conn)
 
-def insert_published_article(title, slug, article_md, diagram, topic_node_id, scheduled_date):
+def insert_published_article(title, slug, article_md, diagram, topic_node_id, scheduled_date, audio_url=None):
     """Directly pushes an article to the published table, bypassing the candidate queue."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO published_articles 
-            (title, slug, article_md, diagram, published_at, scheduled_for, topic_node_id)
-            VALUES (%s, %s, %s, %s, NOW(), %s, %s)
+            (title, slug, article_md, diagram, audio_url, published_at, scheduled_for, topic_node_id)
+            VALUES (%s, %s, %s, %s, %s, NOW(), %s, %s)
             RETURNING id
-        """, (title, slug, article_md, diagram, scheduled_date, topic_node_id))
+        """, (title, slug, article_md, diagram, audio_url, scheduled_date, topic_node_id))
         
         article_id = cursor.fetchone()[0]
         conn.commit()
