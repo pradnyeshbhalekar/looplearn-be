@@ -28,4 +28,4 @@ cloudinary
 edge-tts
 asyncio
 
-resendresend==2.23.0
+resend==2.23.0
