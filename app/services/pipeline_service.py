@@ -168,7 +168,7 @@ def run_pipeline():
 
     # 6️⃣ Child topics
     child_topics = compiled.get("child_topics", [])
-    child_inserted = add_child_topics(topic_id, child_topics)
+    child_inserted = add_child_topics(topic_id, child_topics, domain_name)
 
     return {
         "candidate_id": candidate_id,
@@ -325,7 +325,7 @@ def run_premium_pipeline(domain: str):
 
     # 8️⃣ Child topics
     child_topics = compiled.get("child_topics", [])
-    child_inserted = add_child_topics(topic_id, child_topics)
+    child_inserted = add_child_topics(topic_id, child_topics, domain_name)
 
     result = {
         "article_id": article_id,

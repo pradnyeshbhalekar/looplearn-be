@@ -29,12 +29,17 @@ def pick_topic():
 
         domain_id, domain_name = domain
 
-        # 2) pick a connected concept (if exists)
+        # 2) pick a connected concept (if exists) that is not already published
         cursor.execute("""
             SELECT cn.id, cn.name
             FROM concept_edges ce
             JOIN concept_nodes cn ON cn.id = ce.to_node_id
             WHERE ce.from_node_id = %s
+              AND cn.id NOT IN (
+                  SELECT topic_node_id 
+                  FROM published_articles 
+                  WHERE topic_node_id IS NOT NULL
+              )
             ORDER BY (RANDOM() * ce.strength) DESC
             LIMIT 1;
         """, (domain_id,))
@@ -53,8 +58,17 @@ def pick_topic():
         """, (picked_id,))
         repeated = cursor.fetchone()
 
-        # ✅ if not repeated, accept topic
-        if not repeated:
+        # 3B) check if already officially published
+        cursor.execute("""
+            SELECT 1 
+            FROM published_articles 
+            WHERE topic_node_id = %s
+            LIMIT 1;
+        """, (picked_id,))
+        published = cursor.fetchone()
+
+        # ✅ if not repeated or published, accept topic
+        if not repeated and not published:
             break
 
     # 4) save usage (history + last_used_at)
@@ -89,9 +103,9 @@ def pick_topic_domain(domain_name=None):
         if domain_name:
             print(f"🔍 Searching for a topic in domain: {domain_name}")
             
-            # This query is expanded to be more aggressive and case-insensitive
+            # First attempt: Try to find a topic EXACTLY in this domain
             cursor.execute("""
-                SELECT t.id, t.name
+                SELECT t.id, t.name, d.name
                 FROM concept_nodes t
                 INNER JOIN concept_edges e ON t.id = e.to_node_id
                 INNER JOIN concept_nodes d ON e.from_node_id = d.id
@@ -106,6 +120,27 @@ def pick_topic_domain(domain_name=None):
                 ORDER BY RANDOM()
                 LIMIT 1;
             """, (domain_name,))
+            row = cursor.fetchone()
+            
+            # Second attempt: If the specific domain is exhausted, fallback to ANY unused concept globally
+            if not row:
+                print(f"⚠️ Domain '{domain_name}' exhausted. Falling back to any available topic...")
+                cursor.execute("""
+                    SELECT t.id, t.name, d.name
+                    FROM concept_nodes t
+                    LEFT JOIN concept_edges e ON t.id = e.to_node_id
+                    LEFT JOIN concept_nodes d ON e.from_node_id = d.id AND d.node_type = 'domain'
+                    WHERE t.node_type = 'concept'
+                      AND t.id NOT IN (
+                          SELECT topic_node_id 
+                          FROM published_articles 
+                          WHERE topic_node_id IS NOT NULL
+                      )
+                    ORDER BY RANDOM()
+                    LIMIT 1;
+                """)
+                row = cursor.fetchone()
+                
         else:
             # Query randomly and also fetch its linked domain
             cursor.execute("""
@@ -122,8 +157,7 @@ def pick_topic_domain(domain_name=None):
                 ORDER BY RANDOM()
                 LIMIT 1;
             """)
-        
-        row = cursor.fetchone()
+            row = cursor.fetchone()
         
         if row:
             print(f"✅ Found topic: {row[1]} (ID: {row[0]})")
