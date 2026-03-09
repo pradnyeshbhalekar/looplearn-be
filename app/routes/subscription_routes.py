@@ -242,9 +242,10 @@ def razorpay_webhook():
 @subscription_routes.get("/me")
 @require_auth
 def my_subscription(user):
-    sub = get_user_active_subscription(user["user_id"])
-    if sub:
-        return jsonify({"status": "active","subscription": sub})
+    subs = get_user_active_subscriptions(user["user_id"])
+    if subs:
+        return jsonify({"status": "active", "subscriptions": subs})
+    
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -259,6 +260,7 @@ def my_subscription(user):
         row = cursor.fetchone()
         if not row:
             return jsonify({"status": "none"})
+            
         return jsonify({
             "status": row[1],
             "subscription": {

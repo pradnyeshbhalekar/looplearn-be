@@ -129,6 +129,7 @@ def get_user_active_subscription(user_id):
             WHERE s.user_id = %s
               AND s.status = 'active'
               AND (s.ends_at IS NULL OR s.ends_at > NOW())
+            ORDER BY s.started_at DESC NULLS LAST, s.id DESC
             LIMIT 1;
         """, (user_id,))
         row = cursor.fetchone()

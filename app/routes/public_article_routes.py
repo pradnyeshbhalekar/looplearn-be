@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from app.models.published_articles import (
     get_published_by_slug,
     get_todays_published_article,
-    get_todays_free_article,
+    get_todays_article,
 )
 from app.utils.jwt_utils import decode_jwt
 from app.models.user import get_user_by_id, get_user_active_subscription
@@ -16,7 +16,7 @@ public_article_routes = Blueprint(
 
 @public_article_routes.get("/today")
 def today_article():
-    article = get_todays_free_article()
+    article = get_todays_article()
     if not article:
         return jsonify({"error": "No article published today"}), 404
     return jsonify(article)

@@ -382,7 +382,7 @@ def get_latest_published_article_pref_subscriber(domain_name: str):
         }
     finally:
         close_connection(conn)
-def get_todays_free_article():
+def get_todays_article():
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -396,7 +396,8 @@ def get_todays_free_article():
                 pa.diagram,
                 pa.published_at,
                 topic.name  AS topic_name,
-                domain.name AS domain_name
+                domain.name AS domain_name,
+                COALESCE(av.audience, 'public') AS audience
             FROM published_articles pa
             LEFT JOIN article_visibility av
                 ON av.published_article_id = pa.id
@@ -408,8 +409,7 @@ def get_todays_free_article():
                 ON ce.from_node_id = domain.id
                AND domain.node_type = 'domain'
             WHERE pa.scheduled_for::date = CURRENT_DATE
-              AND (av.audience IS NULL OR av.audience = 'public')
-            ORDER BY RANDOM()
+            ORDER BY pa.published_at DESC
             LIMIT 1;
         """)
 
@@ -427,6 +427,7 @@ def get_todays_free_article():
             "published_at": row[5],
             "topic": row[6],
             "domain": row[7],
+            "audience": row[8],
         }
     finally:
         close_connection(conn)
