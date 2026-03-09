@@ -1,31 +1,27 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import os
+import resend
 from datetime import datetime
 
-SMTP_HOST = os.getenv("SMTP_HOST")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASS = os.getenv("SMTP_PASS")
-print("SMTP_HOST:", SMTP_HOST)
-print("SMTP_PORT:", SMTP_PORT)
-print("SMTP_USER:", SMTP_USER)
-print("SMTP_PASS exists:", SMTP_PASS is not None)
+# Initialize Resend
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+resend.api_key = RESEND_API_KEY
+
+# The "From" email must be a verified domain in your Resend account.
+# We will use SMTP_USER as the sender if it's set, otherwise fallback to a generic onboarding email.
+SENDER_EMAIL = os.getenv("SMTP_USER", "onboarding@resend.dev")
 
 def _send_email(to_email: str, subject: str, html_body: str):
-    """Low-level helper: sends a single HTML email."""
-    msg = MIMEMultipart("alternative")
-    msg["From"] = SMTP_USER
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(html_body, "html"))
-
-    server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
-    server.starttls()
-    server.login(SMTP_USER, SMTP_PASS)
-    server.sendmail(SMTP_USER, to_email, msg.as_string())
-    server.quit()
+    """Low-level helper: sends a single HTML email using Resend."""
+    try:
+        response = resend.Emails.send({
+            "from": SENDER_EMAIL,
+            "to": to_email,
+            "subject": subject,
+            "html": html_body
+        })
+        print(f"✅ Email sent via Resend to {to_email}. Response: {response}")
+    except Exception as e:
+        print(f"❌ Failed to send email via Resend to {to_email}. Error: {e}")
 
 
 def send_admin_notification(emails, topic_title):

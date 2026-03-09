@@ -27,3 +27,5 @@ razorpay
 cloudinary
 edge-tts
 asyncio
+
+resendresend==2.23.0
