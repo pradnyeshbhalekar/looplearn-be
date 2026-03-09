@@ -133,7 +133,7 @@ def run_pipeline():
     # Generate Audio
     from app.services.audio_service import create_commuter_audio
     print(f"🎙️ Generating commuter audio for topic: {topic_name}...")
-    audio_url, timestamps = create_commuter_audio(article_md, slug)
+    audio_url, timestamps = create_commuter_audio(article_md, slug, domain_name, title)
 
     # 5️⃣ Create candidate article
     candidate_id = create_candidate(
@@ -262,7 +262,7 @@ def run_premium_pipeline(domain: str):
     # Generate Audio
     from app.services.audio_service import create_commuter_audio
     print(f"🎙️ Generating commuter audio for topic: {topic_name}...")
-    audio_url, timestamps = create_commuter_audio(article_md, slug)
+    audio_url, timestamps = create_commuter_audio(article_md, slug, domain_name, title)
 
     # 7️⃣ Create candidate and AUTO-PUBLISH
     tomorrow = date.today() + timedelta(days=1)

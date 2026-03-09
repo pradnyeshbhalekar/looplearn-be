@@ -57,9 +57,18 @@ async def generate_audio_and_upload(text: str, topic_slug: str):
             os.remove(local_file)
             print(f"🗑️ Cleaned up local file: {local_file}")
 
-def create_commuter_audio(text_content, topic_slug):
+import re
+
+def create_commuter_audio(text_content, topic_slug, domain_name="Software Engineering", topic_title="this topic"):
     """Returns a tuple: (audio_url, timestamps)"""
-    return asyncio.run(generate_audio_and_upload(text_content, topic_slug))
+    # Remove markdown syntax to prevent TTS from reading things like "hash hash"
+    clean_text = re.sub(r'#|\*|_|`', '', text_content)
+    # Also clean up multiple newlines or spaces if necessary, though TTS handles them okay
+    
+    # Prepend the polite intro
+    intro_text = f"Hello there, welcome to LoopLearn! Today at {domain_name}, we will have a look at {topic_title}. "
+    full_text = intro_text + clean_text
+    return asyncio.run(generate_audio_and_upload(full_text, topic_slug))
 
 
 if __name__ == "__main__":
