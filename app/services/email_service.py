@@ -5,10 +5,13 @@ import os
 from datetime import datetime
 
 SMTP_HOST = os.getenv("SMTP_HOST")
-SMTP_PORT = os.getenv('SMTP_PORT')
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
-
+print("SMTP_HOST:", SMTP_HOST)
+print("SMTP_PORT:", SMTP_PORT)
+print("SMTP_USER:", SMTP_USER)
+print("SMTP_PASS exists:", SMTP_PASS is not None)
 
 def _send_email(to_email: str, subject: str, html_body: str):
     """Low-level helper: sends a single HTML email."""
