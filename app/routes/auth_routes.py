@@ -5,6 +5,7 @@ import os
 from app.models.user import get_or_create_user
 from app.models.auth_context import get_auth_context
 from app.utils.jwt_utils import create_jwt
+from app.utils.auth_decorators import require_auth
 
 auth_routes = Blueprint("auth_routes", __name__)
 
@@ -44,4 +45,15 @@ def google_login():
             "role": context["role"],
             "subscription": context["subscription"]
         }
+    })
+@auth_routes.get("/me")
+@require_auth
+def get_me(user):
+    user_id = user["user_id"]
+    context = get_auth_context(user_id)
+    return jsonify({
+        "id": user_id,
+        "email": user["email"],
+        "role": context["role"],
+        "subscription": context["subscription"]
     })

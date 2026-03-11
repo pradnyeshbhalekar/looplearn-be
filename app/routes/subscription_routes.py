@@ -36,8 +36,9 @@ def get_plans():
 def mock_subscribe(user): 
     data = request.get_json()
     plan_id = data.get('plan_id')
+    is_team = bool(data.get("is_team", False))
+    workspace_id = data.get("workspace_id")
     
-
     user_id = user["user_id"] 
 
     if not plan_id:
@@ -81,25 +82,34 @@ def mock_subscribe(user):
             return jsonify({"error": "invalid monthly_price"}), 400
         rp_plan_id = None
         if plan_row and len(plan_row) >= 1:
-            # fetch cached plan id if present
-            cursor.execute("SELECT razorpay_plan_id FROM plans WHERE id = %s", (plan_id_db,))
-            cached = cursor.fetchone()
-            rp_plan_id = cached[0] if cached and cached[0] else None
+            # For personal plans, fetch cached plan id. Team plans get generated dynamically for now.
+            if not is_team:
+                cursor.execute("SELECT razorpay_plan_id FROM plans WHERE id = %s", (plan_id_db,))
+                cached = cursor.fetchone()
+                rp_plan_id = cached[0] if cached and cached[0] else None
+                
         if not rp_plan_id:
             try:
+                # Team licenses cost 4x the base
+                final_amount_paise = amount_paise * 4 if is_team else amount_paise
+                final_plan_name = f"LoopLearn {plan_name} (Team License)" if is_team else f"LoopLearn {plan_name}"
+                
                 rp_plan = create_plan(
                     period=period,
                     interval=interval,
                     item={
-                        "name": f"LoopLearn {plan_name}",
-                        "amount": amount_paise,
+                        "name": final_plan_name,
+                        "amount": final_amount_paise,
                         "currency": "INR",
                         "description": f"{plan_domain} subscription"
                     }
                 )
                 rp_plan_id = rp_plan["id"]
-                cursor.execute("UPDATE plans SET razorpay_plan_id = %s WHERE id = %s", (rp_plan_id, plan_id_db))
-                conn.commit()
+                
+                # Only cache base personal plans on the DB to avoid accidental team overrides
+                if not is_team:
+                    cursor.execute("UPDATE plans SET razorpay_plan_id = %s WHERE id = %s", (rp_plan_id, plan_id_db))
+                    conn.commit()
             except Exception as erp:
                 return jsonify({"error": f"razorpay plan error: {str(erp)}"}), 502
         redirect_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/") + "/subscription/success"
@@ -111,7 +121,9 @@ def mock_subscribe(user):
                 notes={
                     "user_id": str(user_id),
                     "plan_id": str(plan_id_db),
-                    "domain": plan_domain
+                    "domain": plan_domain,
+                    "is_team": "1" if is_team else "0",
+                    "workspace_id": str(workspace_id) if workspace_id else ""
                 }
             )
         except Exception as ers:
@@ -167,6 +179,9 @@ def razorpay_webhook():
     notes = entity.get("notes", {}) or {}
     user_id = notes.get("user_id")
     plan_id = notes.get("plan_id")
+    is_team_str = notes.get("is_team", "0")
+    is_team = True if is_team_str == "1" else False
+    
     if not user_id or not plan_id:
         if not rzp_sub_id:
             return jsonify({"ok": True})
@@ -193,17 +208,19 @@ def razorpay_webhook():
                     UPDATE subscriptions
                     SET status = 'active',
                         started_at = NOW(),
-                        ends_at = NOW() + INTERVAL '{interval_days}'
+                        ends_at = NOW() + INTERVAL '{interval_days}',
+                        is_team = %s
                     WHERE razorpay_subscription_id = %s;
-                """, (rzp_sub_id,))
+                """, (is_team, rzp_sub_id))
             else:
                 cursor.execute(f"""
                     UPDATE subscriptions
                     SET status = 'active',
                         started_at = NOW(),
-                        ends_at = NOW() + INTERVAL '{interval_days}'
+                        ends_at = NOW() + INTERVAL '{interval_days}',
+                        is_team = %s
                     WHERE user_id = %s AND plan_id = %s AND status = 'pending';
-                """, (user_id, plan_id))
+                """, (is_team, user_id, plan_id))
             conn.commit()
         elif event in ("subscription.charged",):
             if rzp_sub_id:
@@ -242,10 +259,16 @@ def razorpay_webhook():
 @subscription_routes.get("/me")
 @require_auth
 def my_subscription(user):
-    subs = get_user_active_subscriptions(user["user_id"])
-    if subs:
-        return jsonify({"status": "active", "subscriptions": subs})
+    # 1. Check for active subscriptions (including team inheritance)
+    active_subs = get_user_active_subscriptions(user["user_id"])
+    if active_subs:
+        return jsonify({
+            "status": "active",
+            "subscriptions": active_subs,
+            "subscription": active_subs[0] if active_subs else None
+        })
     
+    # 2. If no active found, fall back to the most recent subscription (pending/cancelled/paused)
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -258,19 +281,27 @@ def my_subscription(user):
             LIMIT 1
         """, (user["user_id"],))
         row = cursor.fetchone()
+        
         if not row:
-            return jsonify({"status": "none"})
+            return jsonify({
+                "status": "none",
+                "subscriptions": [],
+                "subscription": None
+            })
             
+        sub_obj = {
+            "subscription_id": row[0],
+            "status": row[1],
+            "ends_at": row[2],
+            "plan_id": row[3],
+            "plan_name": row[4],
+            "domain": row[5],
+        }
+        
         return jsonify({
             "status": row[1],
-            "subscription": {
-                "subscription_id": row[0],
-                "status": row[1],
-                "ends_at": row[2],
-                "plan_id": row[3],
-                "plan_name": row[4],
-                "domain": row[5],
-            }
+            "subscriptions": [sub_obj],
+            "subscription": sub_obj
         })
     finally:
         close_connection(conn)

@@ -78,6 +78,10 @@ def create_plans_table():
             ADD COLUMN IF NOT EXISTS razorpay_plan_id TEXT;
         """)
         cursor.execute("""
+            ALTER TABLE subscriptions
+            ADD COLUMN IF NOT EXISTS is_team BOOLEAN DEFAULT FALSE;
+        """)
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_subscriptions_user_status
             ON subscriptions(user_id, status);
         """)
@@ -129,9 +133,22 @@ def get_user_active_subscription(user_id):
             WHERE s.user_id = %s
               AND s.status = 'active'
               AND (s.ends_at IS NULL OR s.ends_at > NOW())
-            ORDER BY s.started_at DESC NULLS LAST, s.id DESC
+              
+            UNION
+            
+            SELECT s.id, s.plan_id, s.status, s.ends_at, p.domain, p.name AS plan_name
+            FROM subscriptions s
+            JOIN plans p ON p.id = s.plan_id
+            JOIN workspaces w ON w.owner_id = s.user_id
+            JOIN workspace_members wm ON wm.workspace_id = w.id
+            WHERE wm.user_id = %s
+              AND s.status = 'active'
+              AND s.is_team = TRUE
+              AND (s.ends_at IS NULL OR s.ends_at > NOW())
+              
+            ORDER BY ends_at DESC NULLS LAST, id DESC
             LIMIT 1;
-        """, (user_id,))
+        """, (user_id, user_id))
         row = cursor.fetchone()
         if not row:
             return None
@@ -157,8 +174,21 @@ def get_user_active_subscriptions(user_id):
             WHERE s.user_id = %s
               AND s.status = 'active'
               AND (s.ends_at IS NULL OR s.ends_at > NOW())
-            ORDER BY s.started_at DESC NULLS LAST, s.id DESC;
-        """, (user_id,))
+              
+            UNION
+            
+            SELECT s.id, s.plan_id, s.status, s.ends_at, p.domain, p.name AS plan_name
+            FROM subscriptions s
+            JOIN plans p ON p.id = s.plan_id
+            JOIN workspaces w ON w.owner_id = s.user_id
+            JOIN workspace_members wm ON wm.workspace_id = w.id
+            WHERE wm.user_id = %s
+              AND s.status = 'active'
+              AND s.is_team = TRUE
+              AND (s.ends_at IS NULL OR s.ends_at > NOW())
+              
+            ORDER BY ends_at DESC NULLS LAST, id DESC;
+        """, (user_id, user_id))
         rows = cursor.fetchall()
         result = []
         for row in rows:

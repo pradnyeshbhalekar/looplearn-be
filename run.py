@@ -10,6 +10,7 @@ from app.routes.admin_candidate_routes import admin_candidate_routes
 from app.routes.public_article_routes import public_article_routes
 from app.routes.auth_routes import auth_routes
 from app.routes.subscription_routes import subscription_routes
+from app.routes.workspace_routes import bp as workspace_routes
 
 app = Flask(__name__)
 
@@ -50,6 +51,7 @@ app.register_blueprint(admin_candidate_routes,url_prefix="/api/admin/candidates"
 app.register_blueprint(public_article_routes,url_prefix='/api/articles')
 app.register_blueprint(auth_routes,url_prefix="/api/auth")
 app.register_blueprint(subscription_routes,url_prefix='/api/subscriptions')
+app.register_blueprint(workspace_routes,url_prefix='/api/workspaces')
 
 
 
