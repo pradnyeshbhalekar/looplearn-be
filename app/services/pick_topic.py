@@ -160,15 +160,21 @@ def pick_topic_domain(domain_name=None):
             row = cursor.fetchone()
         
         if row:
-            print(f"✅ Found topic: {row[1]} (ID: {row[0]})")
-            actual_domain = domain_name if domain_name else (row[2] if len(row) > 2 else "System Design")
+            # Use actual domain from DB if available (row[2]), otherwise fallback to "System Design"
+            # This prevents polluting the requested domain with unrelated topics on fallback
+            actual_domain = row[2] if (len(row) > 2 and row[2]) else "System Design"
+            
+            if domain_name and actual_domain.lower() != domain_name.lower():
+                print(f"⚠️ Fallback mapping: Topic '{row[1]}' belongs to domain '{actual_domain}', not '{domain_name}'")
+            
+            print(f"✅ Found topic: {row[1]} (ID: {row[0]}) in domain: {actual_domain}")
             return {
                 "topic_node_id": row[0], 
                 "topic_name": row[1],
                 "domain": actual_domain
             }
         
-        print(f"❌ No unused topics found for domain: {domain_name}")
+        print(f"❌ No unused topics found globally.")
         return None
         
     except Exception as e:

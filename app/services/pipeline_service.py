@@ -238,7 +238,8 @@ def run_premium_pipeline(domain: str):
 
     topic_id = topic["topic_node_id"]
     topic_name = topic["topic_name"]
-    print(f"Starting generation for: {topic_name} ({domain or 'auto'})")
+    actual_domain = topic.get("domain", domain or "System Design")
+    print(f"Starting generation for: {topic_name} (Requested: {domain or 'auto'}, Actual: {actual_domain})")
 
 
     fetched_sources = fetch_candidate_source(topic_name)
@@ -277,7 +278,7 @@ def run_premium_pipeline(domain: str):
     if "mermaid" in compiled:
         diagram = compiled["mermaid"].get("code")
 
-    domain_name = topic.get("domain", domain)
+    domain_name = actual_domain
 
     # Generate Audio
     from app.services.audio_service import create_commuter_audio
