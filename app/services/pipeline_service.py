@@ -231,15 +231,15 @@ def run_premium_pipeline(domain: str):
 
     topic = pick_topic_domain(domain)
     if not topic:
-
-        topic = pick_topic()
-        if not topic:
-            raise RuntimeError(f"No pending topics found for domain: {domain}")
+        raise RuntimeError(f"No pending topics found for domain: {domain}")
 
     topic_id = topic["topic_node_id"]
     topic_name = topic["topic_name"]
-    actual_domain = topic.get("domain", domain or "System Design")
-    print(f"Starting generation for: {topic_name} (Requested: {domain or 'auto'}, Actual: {actual_domain})")
+    # Standardize requested domain name (Title Case)
+    std_domain = domain.strip().title() if domain else "General"
+    actual_domain = topic.get("domain", std_domain)
+    
+    print(f"Starting generation for: {topic_name} (Requested: {std_domain}, Actual: {actual_domain})")
 
 
     fetched_sources = fetch_candidate_source(topic_name)
@@ -270,7 +270,7 @@ def run_premium_pipeline(domain: str):
     compiled_id = save_compiled_topic(topic_id, compiled)
 
     # 6️⃣ Derive ARTICLE FIELDS
-    title = f"{topic_name} – Complete Guide"
+    title = f"{topic_name} "
     slug = slugify(title)
     article_md = render_article_md(compiled)
 
@@ -308,11 +308,26 @@ def run_premium_pipeline(domain: str):
         audio_url=audio_url
     )
     set_article_audience(article_id, "subscriber")
+    
+    # 8️⃣ Link to domain ONLY if it's the correct match or an orphaned topic
+    # This prevents contaminating unrelated domains on fallback.
     try:
-        domain_node = insert_node(domain, "domain")
-        insert_or_increment_edge(domain_node[0], topic_id)
-    except Exception as _:
-        pass
+        # Use actual_domain for the edge, but ensure requested domain exists too
+        requested_node = insert_node(std_domain, "domain")
+        
+        # If the topic was picked specifically for this domain OR was orphaned/global fallback,
+        # we check if we should actually link it. 
+        # Crucial fix: Only link if we are sure it belongs here.
+        if actual_domain.lower() == std_domain.lower():
+            insert_or_increment_edge(requested_node[0], topic_id)
+            print(f"🔗 Linked '{topic_name}' to domain '{std_domain}'")
+        else:
+            # Topic belongs to different domain (fallback), link it to ITS domain instead
+            actual_node = insert_node(actual_domain, "domain")
+            insert_or_increment_edge(actual_node[0], topic_id)
+            print(f"🔗 Linked '{topic_name}' to its OWN domain '{actual_domain}' (Fallback occurred from '{std_domain}')")
+    except Exception as e:
+        print(f"⚠️ Graph linking failed: {e}")
     # Mark candidate as approved so it doesn't appear in admin pending list
     update_candidate_status(
         candidate_id=candidate_id,

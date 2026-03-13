@@ -9,9 +9,12 @@ from app.models.pipeline_jobs import create_pipeline_jobs
 from app.models.article_candidate import create_article_candidate
 from app.models.published_articles import create_published_article, create_article_visibility_table
 from app.models.user import create_user_table,create_plans_table
+from app.models.workspace import create_workspace_tables
 
 def init_db():
 
+    create_user_table()
+    create_plans_table()
     create_graph_tables()
     create_sources_table()
     create_daily_post_table()
@@ -23,8 +26,7 @@ def init_db():
     create_article_candidate()
     create_published_article()
     create_article_visibility_table()
-    create_user_table()
-    create_plans_table()
+    create_workspace_tables()
     
 
 

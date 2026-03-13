@@ -15,16 +15,15 @@ from app.routes.workspace_routes import bp as workspace_routes
 app = Flask(__name__)
 
 
-CORS(app, origins=['http://localhost:5173','https://looplearn-nine.vercel.app'], supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-)
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173","https://looplearn-nine.vercel.app"]}}, supports_credentials=True)
 
 @app.after_request
 def add_headers(response):
     # Allow Google OAuth to work by not restricting opener policy
-    response.headers["Cross-Origin-Opener-Policy"] = "unsafe-none"
-    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    # 'same-origin-allow-popups' is generally required for Google GSI
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    # Remove COEP or set to a more permissive value to allow external scripts
+    # response.headers["Cross-Origin-Embedder-Policy"] = "require-corp" 
     return response
 
 

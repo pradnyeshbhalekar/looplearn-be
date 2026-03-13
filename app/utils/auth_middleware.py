@@ -9,7 +9,7 @@ def require_auth(f):
     def decorated_function(*args, **kwargs):
 
         if request.method == "OPTIONS":
-            return f(*args, **kwargs)
+            return "", 200
 
 
         header = request.headers.get("Authorization")

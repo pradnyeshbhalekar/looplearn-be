@@ -9,7 +9,7 @@ def add_child_topics(parent_topic_id:str, child_concepts:list[str], domain_name:
         conn = get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM concept_nodes WHERE name = %s AND node_type = 'domain';", (domain_name,))
+            cursor.execute("SELECT id FROM concept_nodes WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s)) AND node_type = 'domain';", (domain_name,))
             row = cursor.fetchone()
             if row:
                 domain_id = row[0]

@@ -9,6 +9,7 @@ DOMAINS = [
     "APIs",
     "Distributed Systems",
     "Frontend Engineering",
+    "Cloud Computing",
 ]
 
 
@@ -67,11 +68,21 @@ def seed_domains():
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.executemany("""
-        INSERT INTO concept_nodes (name, node_type)
-        VALUES (%s, 'domain')
-        ON CONFLICT (name) DO NOTHING;
-    """, [(d,) for d in DOMAINS])
+    for d in DOMAINS:
+        # Standardize matching insert_node logic
+        raw_name = d.strip()
+        if raw_name.upper() == 'APIS':
+            processed_name = 'APIs'
+        else:
+            processed_name = raw_name.title()
+        
+        cursor.execute("""
+            INSERT INTO concept_nodes (name, node_type)
+            VALUES (%s, 'domain')
+            ON CONFLICT (name) 
+            DO UPDATE SET node_type = 'domain'
+            RETURNING id;
+        """, (processed_name,))
 
     conn.commit()
     close_connection(conn)
@@ -98,13 +109,25 @@ def insert_node(name, node_type):
     conn = get_connection()
     cursor = conn.cursor()
 
+    # Standardize domain names to prevent case duplicates
+    processed_name = name.strip()
+    if node_type == 'domain':
+        if processed_name.upper() == 'APIS':
+            processed_name = 'APIs'
+        else:
+            processed_name = processed_name.title()
+
     cursor.execute("""
         INSERT INTO concept_nodes (name, node_type)
         VALUES (%s, %s)
         ON CONFLICT (name)
-        DO UPDATE SET node_type = EXCLUDED.node_type
+        DO UPDATE SET 
+            node_type = CASE 
+                WHEN concept_nodes.node_type = 'domain' AND EXCLUDED.node_type = 'concept' THEN 'domain'
+                ELSE EXCLUDED.node_type 
+            END
         RETURNING id, name, node_type;
-    """, (name, node_type))
+    """, (processed_name, node_type))
 
     node = cursor.fetchone()
 

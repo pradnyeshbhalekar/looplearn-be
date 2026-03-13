@@ -103,13 +103,13 @@ def pick_topic_domain(domain_name=None):
         if domain_name:
             print(f"🔍 Searching for a topic in domain: {domain_name}")
             
-            # First attempt: Try to find a topic EXACTLY in this domain
+            # First attempt: Try to find a topic EXACTLY in this domain (with Case/Trim safety)
             cursor.execute("""
                 SELECT t.id, t.name, d.name
                 FROM concept_nodes t
                 INNER JOIN concept_edges e ON t.id = e.to_node_id
                 INNER JOIN concept_nodes d ON e.from_node_id = d.id
-                WHERE LOWER(d.name) = LOWER(%s) 
+                WHERE LOWER(TRIM(d.name)) = LOWER(TRIM(%s)) 
                   AND d.node_type = 'domain' 
                   AND t.node_type = 'concept'
                   AND t.id NOT IN (
@@ -122,24 +122,26 @@ def pick_topic_domain(domain_name=None):
             """, (domain_name,))
             row = cursor.fetchone()
             
-            # Second attempt: If the specific domain is exhausted, fallback to ANY unused concept globally
             if not row:
-                print(f"⚠️ Domain '{domain_name}' exhausted. Falling back to any available topic...")
+                print(f"⚠️ Domain '{domain_name}' exhausted. Checking for bootstrap (domain node itself)...")
                 cursor.execute("""
-                    SELECT t.id, t.name, d.name
-                    FROM concept_nodes t
-                    LEFT JOIN concept_edges e ON t.id = e.to_node_id
-                    LEFT JOIN concept_nodes d ON e.from_node_id = d.id AND d.node_type = 'domain'
-                    WHERE t.node_type = 'concept'
-                      AND t.id NOT IN (
+                    SELECT id, name, name 
+                    FROM concept_nodes 
+                    WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
+                      AND node_type = 'domain'
+                      AND id NOT IN (
                           SELECT topic_node_id 
                           FROM published_articles 
                           WHERE topic_node_id IS NOT NULL
                       )
-                    ORDER BY RANDOM()
                     LIMIT 1;
-                """)
+                """, (domain_name,))
                 row = cursor.fetchone()
+                if row:
+                    print(f"🚀 Bootstrapping domain: '{row[1]}' using domain node itself.")
+                else:
+                    print(f"❌ Domain '{domain_name}' fully exhausted (even domain node).")
+                    return None
                 
         else:
             # Query randomly and also fetch its linked domain
@@ -160,9 +162,8 @@ def pick_topic_domain(domain_name=None):
             row = cursor.fetchone()
         
         if row:
-            # Use actual domain from DB if available (row[2]), otherwise fallback to "System Design"
-            # This prevents polluting the requested domain with unrelated topics on fallback
-            actual_domain = row[2] if (len(row) > 2 and row[2]) else "System Design"
+            # Use actual domain from DB if available (row[2]), otherwise use the requested domain or "General"
+            actual_domain = row[2] if (len(row) > 2 and row[2]) else (domain_name or "General")
             
             if domain_name and actual_domain.lower() != domain_name.lower():
                 print(f"⚠️ Fallback mapping: Topic '{row[1]}' belongs to domain '{actual_domain}', not '{domain_name}'")
@@ -174,7 +175,6 @@ def pick_topic_domain(domain_name=None):
                 "domain": actual_domain
             }
         
-        print(f"❌ No unused topics found globally.")
         return None
         
     except Exception as e:
