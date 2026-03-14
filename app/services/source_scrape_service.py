@@ -83,5 +83,6 @@ def scrape_and_store(source_id: str, url: str):
         "raw_length": raw_len,
         "clean_length": clean_len,
         "title": title,
+        "content_text": content_text,
         "topic_node_ids": topic_node_ids
     }

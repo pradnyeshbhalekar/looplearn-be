@@ -67,6 +67,11 @@ Avoid textbook-style definitions.
   - Wrap any node labels containing special characters or spaces in double quotes. ALWAYS format nodes as: nodeID["Node Label (Extra Info)"] instead of nodeID[Node Label (Extra Info)].
   - Keep the graph extremely simple and top-to-bottom or left-to-right (`graph TD` or `graph LR`). Avoid complex nesting that fails to render.
 
+- **SCRAPED DATA USAGE**:
+  - You may be provided with scraped content related to the topic.
+  - Use this data to provide more specific, accurate, and detailed engineering insights.
+  - If the data contradicts public knowledge, prioritize well-established engineering best practices but acknowledge the specific context provided.
+
 RETURN STRICT JSON ONLY.
 
 NO MARKDOWN.
@@ -108,9 +113,14 @@ You must produce JSON in EXACTLY this format:
 """
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=5, max=60), reraise=True)
-def compile_topic(topic_name: str, concepts: list[str]) -> dict:
+def compile_topic(topic_name: str, concepts: list[str], scraped_data: list[str] = None) -> dict:
     # Keep the user prompt clean and focused strictly on the data
     prompt = f"Topic: {topic_name}\nExtracted concepts: {', '.join(concepts)}"
+    
+    if scraped_data:
+        prompt += "\n\nRelated Scraped Content:\n"
+        for i, data in enumerate(scraped_data):
+            prompt += f"--- Source {i+1} ---\n{data}\n"
 
     response = client.models.generate_content(
         model=MODEL_NAME,

@@ -132,7 +132,8 @@ def run_pipeline():
         scraped_result.append(scrape_and_store(source_id, url))
 
 
-    compiled = compile_topic(topic_name, [topic_name])
+    scraped_data = [res["content_text"] for res in scraped_result if res.get("status") == "success" and res.get("content_text")]
+    compiled = compile_topic(topic_name, [topic_name], scraped_data=scraped_data)
 
 
     compiled_id = save_compiled_topic(topic_id, compiled)
