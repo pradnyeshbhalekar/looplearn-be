@@ -1,4 +1,6 @@
 from operator import index
+import json
+import os
 from app.services.pick_topic import pick_topic,pick_topic_domain
 from app.services.fetcher import fetch_candidate_source
 from app.services.source_service import store_sources_bulk
@@ -36,73 +38,49 @@ def render_article_md(compiled: dict) -> str:
         
     if compiled.get("what_if_it_wasnt_there"):
         parts.append("## What If It Wasn't There?\n")
-        parts.append(str(compiled.get("what_if_it_wasnt_there")) + "\n")
-
-    # THEORY
+    segments = []
+    
+    # Intro
+    segments.append(f"{compiled.get('intro_hook', '')}\n\n{compiled.get('what_is_it', '')}")
+    
+    # Why Important
+    segments.append(f"## Why is it important?\n{compiled.get('why_is_it_important', '')}")
+    
+    # Theory
     theory = compiled.get("theory", {})
     if theory:
-        parts.append("## Theory\n")
-        if theory.get("overview"):
-            parts.append(theory["overview"] + "\n")
+        t_md = f"## Core Principles\n{theory.get('overview', '')}\n\n"
+        for p in theory.get("key_principles", []):
+            t_md += f"- **{p}**\n"
+        
+        t_md += "\n### Trade-offs\n"
+        for tr in theory.get("tradeoffs", []):
+            t_md += f"- {tr}\n"
+        segments.append(t_md)
 
-        if theory.get("key_principles"):
-            parts.append("### Key Principles\n")
-            for p in theory["key_principles"]:
-                parts.append(f"- {p}")
-            parts.append("")
+    # Observability
+    metrics = compiled.get("observability_metrics", [])
+    if metrics:
+        m_md = "## Operational Essentials\n"
+        for m in metrics:
+            m_md += f"- **{m.get('metric')}**: {m.get('importance')}\n"
+        segments.append(m_md)
 
-        if theory.get("tradeoffs"):
-            parts.append("### Trade-offs\n")
-            for t in theory["tradeoffs"]:
-                parts.append(f"- {t}")
-            parts.append("")
+    # Anti-patterns
+    antis = compiled.get("anti_patterns", [])
+    if antis:
+        a_md = "## Common Pitfalls\n"
+        for a in antis:
+            a_md += f"- **{a.get('pattern')}**: {a.get('consequence')}\n"
+        segments.append(a_md)
 
-    # TOPIC SCHEMA
-    schema = compiled.get("topic_schema", {})
-    if schema:
-        parts.append("## Conceptual Breakdown\n")
-        for name, desc in schema.items():
-            parts.append(f"### {name}\n{desc}\n")
+    # Case Study
+    cs = compiled.get("case_study", {})
+    if cs:
+        cs_md = f"## Architecture in Action: {cs.get('system', '')}\n{cs.get('description', '')}\n"
+        segments.append(cs_md)
 
-    # CASE STUDY
-    case = compiled.get("case_study", {})
-    if case:
-        parts.append("## Case Study\n")
-        if case.get("system"):
-            parts.append(f"**System:** {case['system']}\n")
-        if case.get("description"):
-            parts.append(case["description"] + "\n")
-
-        if case.get("key_takeaways"):
-            parts.append("### Key Takeaways\n")
-            for k in case["key_takeaways"]:
-                parts.append(f"- {k}")
-            parts.append("")
-
-    # INTERVIEW NOTES
-    notes = compiled.get("interview_notes", {})
-    if notes:
-        parts.append("## Interview Notes\n")
-
-        if notes.get("common_questions"):
-            parts.append("### Common Questions\n")
-            for q in notes["common_questions"]:
-                parts.append(f"- {q}")
-            parts.append("")
-
-        if notes.get("common_mistakes"):
-            parts.append("### Common Mistakes\n")
-            for m in notes["common_mistakes"]:
-                parts.append(f"- {m}")
-            parts.append("")
-
-        if notes.get("what_interviewers_look_for"):
-            parts.append("### What Interviewers Look For\n")
-            for w in notes["what_interviewers_look_for"]:
-                parts.append(f"- {w}")
-            parts.append("")
-
-    return "\n".join(parts).strip()
+    return "\n\n".join(segments)
 
 def run_pipeline():
     topic = pick_topic()
@@ -162,10 +140,11 @@ def run_pipeline():
         slug=slug,
         article_md=article_md,
         diagram=diagram,
-        audio_url=audio_url
+        audio_url=audio_url,
+        content_json=json.dumps(compiled)
     )
 
-    print("✅ CANDIDATE CREATED:", candidate_id)
+    print(f"✅ Created candidate: {candidate_id}")
 
     # 6️⃣ Child topics
     child_topics = compiled.get("child_topics", [])
@@ -303,7 +282,8 @@ def run_premium_pipeline(domain: str):
         slug=slug,
         article_md=article_md,
         diagram=diagram,
-        audio_url=audio_url
+        audio_url=audio_url,
+        content_json=json.dumps(compiled)
     )
     article_id = publish_article(
         candidate_id=candidate_id,
@@ -314,7 +294,8 @@ def run_premium_pipeline(domain: str):
         diagram=diagram,
         admin_user_id=None,
         publish_date=tomorrow,
-        audio_url=audio_url
+        audio_url=audio_url,
+        content_json=json.dumps(compiled)
     )
     set_article_audience(article_id, "subscriber")
     

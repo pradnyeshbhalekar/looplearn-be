@@ -17,7 +17,8 @@ def create_published_article():
                    published_at TIMESTAMP DEFAULT NOW(),
                    published_by UUID,
                    scheduled_for DATE NOT NULL,
-                   audio_url TEXT   
+                   audio_url TEXT,
+                   content_json JSONB
                    )
                    """)
     conn.commit()
@@ -36,7 +37,7 @@ def create_article_visibility_table():
     conn.commit()
     close_connection(conn)
 
-def publish_article(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date, audio_url=None):
+def publish_article(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date, audio_url=None, content_json=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -47,9 +48,10 @@ def publish_article(candidate_id,topic_node_id,title,slug,article_md,diagram,adm
                    slug,
                    article_md,
                    diagram,published_by,scheduled_for,
-                   audio_url
-                   ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id;
-                   """,(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date, audio_url))
+                   audio_url,
+                   content_json
+                   ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id;
+                   """,(candidate_id,topic_node_id,title,slug,article_md,diagram,admin_user_id,publish_date, audio_url, content_json))
     article_id = cursor.fetchone()[0]
     conn.commit()
     close_connection(conn)

@@ -28,15 +28,20 @@ def create_article_candidate():
             reviewed_by UUID REFERENCES users(id),
             reviewed_at TIMESTAMP,
             audio_url TEXT,
-
+            content_json JSONB,
             created_at TIMESTAMP DEFAULT NOW()
         );
     """)
     conn.commit()
     close_connection(conn)
 
+    candidate_id = cursor.fetchone()[0]
+    conn.commit()
+    close_connection(conn)
+    return candidate_id
+
 def create_candidate(
-        compiled_topic_id,topic_node_id,title,slug,article_md,diagram=None, audio_url=None
+        compiled_topic_id,topic_node_id,title,slug,article_md,diagram=None, audio_url=None, content_json=None
 ):
     conn = get_connection()
     cursor = conn.cursor()
@@ -48,9 +53,10 @@ def create_candidate(
                    slug,
                    article_md,
                    diagram,
-                   audio_url
+                   audio_url,
+                   content_json
                    )
-                   VALUES (%s,%s,%s,%s,%s,%s,%s)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
                    RETURNING id;
                    """,(
                        compiled_topic_id
@@ -60,6 +66,7 @@ def create_candidate(
                        ,article_md
                        ,diagram
                        ,audio_url
+                       ,content_json
                    ))
     
     candidate_id = cursor.fetchone()[0]
