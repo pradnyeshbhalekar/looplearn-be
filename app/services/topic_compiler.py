@@ -118,6 +118,7 @@ def compile_topic(topic_name: str, concepts: list[str], scraped_data: list[str] 
     prompt = f"Topic: {topic_name}\nExtracted concepts: {', '.join(concepts)}"
     
     if scraped_data:
+        print(f"🧠 Using {len(scraped_data)} scraped sources for generation...")
         prompt += "\n\nRelated Scraped Content:\n"
         for i, data in enumerate(scraped_data):
             prompt += f"--- Source {i+1} ---\n{data}\n"

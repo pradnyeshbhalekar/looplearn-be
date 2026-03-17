@@ -40,6 +40,11 @@ def pick_topic():
                   FROM published_articles 
                   WHERE topic_node_id IS NOT NULL
               )
+              AND cn.id NOT IN (
+                  SELECT topic_node_id
+                  FROM article_candidate
+                  WHERE topic_node_id IS NOT NULL
+              )
             ORDER BY (RANDOM() * ce.strength) DESC
             LIMIT 1;
         """, (domain_id,))
@@ -117,6 +122,11 @@ def pick_topic_domain(domain_name=None):
                       FROM published_articles 
                       WHERE topic_node_id IS NOT NULL
                   )
+                  AND t.id NOT IN (
+                      SELECT topic_node_id
+                      FROM article_candidate
+                      WHERE topic_node_id IS NOT NULL
+                  )
                 ORDER BY RANDOM()
                 LIMIT 1;
             """, (domain_name,))
@@ -154,6 +164,11 @@ def pick_topic_domain(domain_name=None):
                   AND t.id NOT IN (
                       SELECT topic_node_id 
                       FROM published_articles 
+                      WHERE topic_node_id IS NOT NULL
+                  )
+                  AND t.id NOT IN (
+                      SELECT topic_node_id
+                      FROM article_candidate
                       WHERE topic_node_id IS NOT NULL
                   )
                 ORDER BY RANDOM()

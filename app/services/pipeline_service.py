@@ -236,9 +236,16 @@ def run_premium_pipeline(domain: str):
 
     topic_id = topic["topic_node_id"]
     topic_name = topic["topic_name"]
-    # Standardize requested domain name (Title Case)
-    std_domain = domain.strip().title() if domain else "General"
+    # Standardize requested domain name (Title Case, except APIs)
+    if domain and domain.strip().upper() == 'APIS':
+        std_domain = 'APIs'
+    else:
+        std_domain = domain.strip().title() if domain else "General"
+    
     actual_domain = topic.get("domain", std_domain)
+    # Fix actual_domain casing if it came from DB as 'Apis'
+    if actual_domain.upper() == 'APIS':
+        actual_domain = 'APIs'
     
     print(f"Starting generation for: {topic_name} (Requested: {std_domain}, Actual: {actual_domain})")
 
@@ -265,7 +272,8 @@ def run_premium_pipeline(domain: str):
         scraped_result.append(scrape_and_store(source_id, url))
 
 
-    compiled = compile_topic(topic_name, [topic_name])
+    scraped_data = [res["content_text"] for res in scraped_result if res.get("status") == "success" and res.get("content_text")]
+    compiled = compile_topic(topic_name, [topic_name], scraped_data=scraped_data)
 
 
     compiled_id = save_compiled_topic(topic_id, compiled)
