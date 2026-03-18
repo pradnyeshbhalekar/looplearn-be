@@ -33,8 +33,15 @@ Your task is to COMPILE structured, engineering-focused knowledge for a given to
    - `anti_patterns`: Common mistakes engineers make and their consequences.
 
 4. **Mermaid Diagrams**:
-   - STRICT syntax. No unescaped `()`, `[]`, `{}` in labels.
-   - Wrap labels in double quotes: `nodeID["Label Text"]`.
+   - Use `graph TD` for flowcharts or `sequenceDiagram` for interactions.
+   - Labels: **ABSOLUTELY NO** `(`, `)`, `[`, `]`, `{`, `}`, `\"`, or `'` inside a label.
+   - **BAD**: `A[\"Load (Slow)\"]` or `B[\"User's Action\"]`.
+   - **GOOD**: `A[\"Load Slow\"]` or `B[\"User Action\"]`.
+   - Formatting: **ALWAYS** wrap labels in double quotes. Example: `nodeID[\"Label Text\"]`.
+   - Node IDs: Use simple alphanumeric IDs (e.g., `A`, `B`, Node1).
+   - Connections: Use `-->` for flow and `-- \"text\" -->` for labeled arrows.
+   - NO markdown code blocks (e.g., ```mermaid) inside the \"code\" string. Just the raw Mermaid syntax.
+   - Ensure all nodes used in connections are defined earlier in the diagram.
 
 ### RULES:
 - **Case Studies**: Must be highly engaging, high-level, and based on well-known public companies (Netflix, Uber, Discord, etc.).
@@ -59,7 +66,13 @@ RETURN STRICT JSON ONLY.
 "theory": {
   "overview": "",
   "key_principles": [],
-  "tradeoffs": []
+  "tradeoffs": [
+    {
+      "strategy": "e.g. Client-side Load Balancing",
+      "pros": ["pro 1", "pro 2"],
+      "cons": ["con 1", "con 2"]
+    }
+  ]
 },
 "observability_metrics": [
   {"metric": "", "importance": ""}
@@ -77,7 +90,7 @@ RETURN STRICT JSON ONLY.
 ],
 "mermaid": {
   "diagram_type": "graph",
-  "code": ""
+  "code": "graph TD\n  A[\"Load Balancer\"] --> B[\"API Cluster\"]\n  B -- \"Read Query\" --> C[\"Database Read Replica\"]"
 },
 "child_topics": []
 }

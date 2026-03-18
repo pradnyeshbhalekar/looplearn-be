@@ -55,7 +55,15 @@ def render_article_md(compiled: dict) -> str:
         
         t_md += "\n### Trade-offs\n"
         for tr in theory.get("tradeoffs", []):
-            t_md += f"- {tr}\n"
+            if isinstance(tr, dict):
+                strategy = tr.get("strategy", "Strategy")
+                t_md += f"- **{strategy}**:\n"
+                for p in tr.get("pros", []):
+                    t_md += f"  - Pro: {p}\n"
+                for c in tr.get("cons", []):
+                    t_md += f"  - Con: {c}\n"
+            else:
+                t_md += f"- {tr}\n"
         segments.append(t_md)
 
     # Observability
