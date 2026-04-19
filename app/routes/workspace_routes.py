@@ -34,6 +34,14 @@ def api_create_workspace(user):
 def api_get_user_workspaces(user):
     user_id = user["user_id"]
     workspaces = get_user_workspaces(user_id)
+    
+    for w in workspaces:
+        sub = get_active_team_subscription(w["id"])
+        w["subscription"] = sub
+        w["todays_topic"] = None
+        if sub:
+            w["todays_topic"] = get_todays_subscriber_article(sub["domain"])
+
     return jsonify({"workspaces": workspaces}), 200
 
 @bp.route("/<workspace_id>", methods=["GET"])
@@ -43,13 +51,12 @@ def api_get_workspace_details(user, workspace_id):
     members = get_workspace_members(workspace_id)
     
     is_admin = is_workspace_admin(workspace_id, user_id)
-    subscription = None
+    
+    # Allow all members to see the subscription and today's topic
+    subscription = get_active_team_subscription(workspace_id)
     todays_topic = None
-
-    if is_admin:
-        subscription = get_active_team_subscription(workspace_id)
-        if subscription:
-            todays_topic = get_todays_subscriber_article(subscription["domain"])
+    if subscription:
+        todays_topic = get_todays_subscriber_article(subscription["domain"])
 
     return jsonify({
         "members": members,
