@@ -9,8 +9,12 @@ from app.services.workspace_service import (
     create_workspace
 )
 from app.models.workspace import is_workspace_admin, get_active_team_subscription
-from app.models.published_articles import get_todays_subscriber_article
-from     app.config.db import get_connection
+from app.models.published_articles import (
+    get_todays_subscriber_article,
+    get_todays_published_article,
+    get_latest_published_article
+)
+from app.config.db import get_connection
 from app.utils.auth_decorators import require_auth
 
 bp = Blueprint("workspaces", __name__)
@@ -40,7 +44,12 @@ def api_get_user_workspaces(user):
         w["subscription"] = sub
         w["todays_topic"] = None
         if sub:
-            w["todays_topic"] = get_todays_subscriber_article(sub["domain"])
+            article = get_todays_subscriber_article(sub["domain"])
+            if not article:
+                article = get_todays_published_article(sub["domain"])
+                if not article:
+                    article = get_latest_published_article(sub["domain"])
+            w["todays_topic"] = article
 
     return jsonify({"workspaces": workspaces}), 200
 
@@ -56,7 +65,12 @@ def api_get_workspace_details(user, workspace_id):
     subscription = get_active_team_subscription(workspace_id)
     todays_topic = None
     if subscription:
-        todays_topic = get_todays_subscriber_article(subscription["domain"])
+        article = get_todays_subscriber_article(subscription["domain"])
+        if not article:
+            article = get_todays_published_article(subscription["domain"])
+            if not article:
+                article = get_latest_published_article(subscription["domain"])
+        todays_topic = article
 
     return jsonify({
         "members": members,

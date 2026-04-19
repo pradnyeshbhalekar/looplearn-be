@@ -130,10 +130,10 @@ def mock_subscribe(user):
             return jsonify({"error": f"razorpay subscription error: {str(ers)}"}), 502
         
         cursor.execute(f"""
-            INSERT INTO subscriptions (user_id, plan_id, status, started_at, ends_at) 
-            VALUES (%s, %s, 'pending', NOW(), NULL)
+            INSERT INTO subscriptions (user_id, plan_id, status, started_at, ends_at, is_team) 
+            VALUES (%s, %s, 'pending', NOW(), NULL, %s)
             RETURNING id, ends_at
-        """, (user_id, plan_id))
+        """, (user_id, plan_id, is_team))
         
         result = cursor.fetchone()
         cursor.execute("""
@@ -422,14 +422,19 @@ def confirm_subscription(user):
             interval_days = "1 day"
         else:
             interval_days = "30 days"
+        notes = (rzp or {}).get("notes", {})
+        is_team_str = notes.get("is_team", "0")
+        is_team = True if is_team_str == "1" else False
+
         if r_status in ("active","authenticated"):
             cursor.execute(f"""
                 UPDATE subscriptions
                 SET status = 'active',
                     started_at = COALESCE(started_at, NOW()),
-                    ends_at = NOW() + INTERVAL '{interval_days}'
+                    ends_at = NOW() + INTERVAL '{interval_days}',
+                    is_team = %s
                 WHERE id = %s
-            """, (sub_id,))
+            """, (is_team, sub_id))
             conn.commit()
             return jsonify({"ok": True, "status": "active"})
         return jsonify({"ok": False, "status": r_status or "unknown"})
