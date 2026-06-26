@@ -409,7 +409,7 @@ def get_todays_article():
     try:
         cursor = conn.cursor()
 
-        cursor.execute("""
+        base_query = """
             SELECT
                 pa.id,
                 pa.title,
@@ -431,12 +431,22 @@ def get_todays_article():
             JOIN concept_nodes domain
                 ON ce.from_node_id = domain.id
                AND domain.node_type = 'domain'
+        """
+
+        cursor.execute(base_query + """
             WHERE pa.scheduled_for::date = CURRENT_DATE
             ORDER BY pa.published_at DESC
             LIMIT 1;
         """)
-
         row = cursor.fetchone()
+
+        if not row:
+            cursor.execute(base_query + """
+                WHERE pa.scheduled_for::date <= CURRENT_DATE
+                ORDER BY pa.scheduled_for DESC, pa.published_at DESC
+                LIMIT 1;
+            """)
+            row = cursor.fetchone()
 
         if not row:
             return None
@@ -448,7 +458,6 @@ def get_todays_article():
             "content": row[3],
             "diagram": row[4],
             "audio_url": row[5],
-
             "published_at": row[6],
             "topic": row[7],
             "domain": row[8],
