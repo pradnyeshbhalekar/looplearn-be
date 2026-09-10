@@ -27,6 +27,7 @@ razorpay
 
 cloudinary
 edge-tts
+pydub
 asyncio
 
 resend==2.23.0

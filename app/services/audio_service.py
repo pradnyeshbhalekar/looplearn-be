@@ -1,7 +1,9 @@
 import os
+import uuid
 import edge_tts
 import asyncio
 from dotenv import load_dotenv
+from pydub import AudioSegment
 import cloudinary
 import cloudinary.uploader
 
@@ -68,6 +70,97 @@ def create_commuter_audio(text_content, topic_slug, domain_name="Software Engine
     intro_text = f"Hello there, welcome to LoopLearn! Today at {domain_name}, we will have a look at {topic_title}. "
     full_text = intro_text + clean_text
     return asyncio.run(generate_audio_and_upload(full_text, topic_slug))
+
+
+HOST_VOICES = {
+    "HOST_A": "en-US-AvaNeural",
+    "HOST_B": "en-US-AndrewNeural",
+}
+LINE_GAP_MS = 350
+
+
+async def _synthesize_line_to_file(text: str, voice: str, local_file: str):
+    communicate = edge_tts.Communicate(text, voice)
+    with open(local_file, "wb") as f:
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                f.write(chunk["data"])
+
+
+async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: str):
+    """
+    Synthesizes a two-host podcast script: each line gets its host's
+    edge-tts voice, lines are stitched into one MP3 (with a short silence
+    between lines) via pydub, and the result is uploaded to Cloudinary.
+
+    Returns (audio_url, line_timestamps) where line_timestamps is
+    [{"host", "text", "start", "end"}, ...] in seconds, measured against
+    the final stitched track — not word-level, but enough to sync a
+    transcript to the audio.
+    """
+    run_id = uuid.uuid4().hex[:8]
+    line_files = []
+    combined = AudioSegment.empty()
+    line_timestamps = []
+    cursor_ms = 0
+
+    try:
+        for i, line in enumerate(dialogue):
+            host = line.get("host")
+            text = line.get("text", "")
+            voice = HOST_VOICES.get(host)
+            if not voice or not text.strip():
+                continue
+
+            local_file = f"loop_in_line_{run_id}_{i}.mp3"
+            line_files.append(local_file)
+
+            await _synthesize_line_to_file(text, voice, local_file)
+
+            segment = AudioSegment.from_file(local_file, format="mp3")
+            duration_ms = len(segment)
+
+            line_timestamps.append({
+                "host": host,
+                "text": text,
+                "start": round(cursor_ms / 1000, 3),
+                "end": round((cursor_ms + duration_ms) / 1000, 3)
+            })
+
+            combined += segment
+            if i < len(dialogue) - 1:
+                combined += AudioSegment.silent(duration=LINE_GAP_MS)
+            cursor_ms += duration_ms + LINE_GAP_MS
+
+        if len(combined) == 0:
+            raise ValueError("No dialogue lines produced audio")
+
+        final_file = f"loop_in_podcast_{topic_slug}_{run_id}.mp3"
+        combined.export(final_file, format="mp3")
+
+        print("Uploading podcast audio to Cloudinary...")
+        response = cloudinary.uploader.upload(final_file, resource_type="video", folder="looplearn_audio")
+        audio_url = response.get("secure_url")
+        print("✅ Podcast audio uploaded to Cloudinary successfully.")
+
+        if os.path.exists(final_file):
+            os.remove(final_file)
+
+        return audio_url, line_timestamps
+
+    except Exception as e:
+        print(f"❌ Error generating podcast audio: {e}")
+        return None, None
+
+    finally:
+        for local_file in line_files:
+            if os.path.exists(local_file):
+                os.remove(local_file)
+
+
+def create_podcast_audio(dialogue: list[dict], topic_slug: str):
+    """Returns a tuple: (audio_url, line_timestamps)"""
+    return asyncio.run(generate_podcast_audio_and_upload(dialogue, topic_slug))
 
 
 if __name__ == "__main__":
