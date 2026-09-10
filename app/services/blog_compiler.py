@@ -1,14 +1,19 @@
-from google import genai
-from google.genai import types
+from groq import Groq
 import json
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
 
-client = genai.Client()
+client = Groq()
 
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "openai/gpt-oss-120b"
+
+# Groq's free/on-demand tier caps requests at 8,000 tokens/min — scraped
+# sources are the biggest variable in the prompt, so they're hard-truncated
+# to stay well under that regardless of how long the original article was.
+MAX_SOURCE_CHARS = 600
+MAX_SOURCES_PER_SUBTOPIC = 2
 
 SYSTEM_INSTRUCTIONS = """
 You are a technical writer compiling a deep-dive blog article for a learner
@@ -45,7 +50,8 @@ scraped source material for each subtopic.
 
 ### TONE
 Clear, direct, written to the learner's stated level — not marketing copy,
-not an exhaustive reference manual.
+not an exhaustive reference manual. Keep each section's "content" to
+roughly 150-250 words — concise sections, not an exhaustive reference.
 
 RETURN STRICT JSON ONLY, matching this exact shape:
 
@@ -83,8 +89,9 @@ def _format_sources_block(recommended_scope: list[str], sources: list[dict]) -> 
             continue
 
         lines.append(f"### {subtopic}")
-        for i, source in enumerate(subtopic_sources):
-            lines.append(f"--- Source {i+1} ({source.get('url')}) ---\n{source.get('text')}")
+        for i, source in enumerate(subtopic_sources[:MAX_SOURCES_PER_SUBTOPIC]):
+            text = (source.get("text") or "")[:MAX_SOURCE_CHARS]
+            lines.append(f"--- Source {i+1} ({source.get('url')}) ---\n{text}")
 
     return "\n\n".join(lines)
 
@@ -104,33 +111,35 @@ def compile_blog(topic: str, intent: str, gap_analysis: dict, sources: list[dict
         f"Scraped source material:\n\n{_format_sources_block(recommended_scope, sources)}"
     )
 
-    response = client.models.generate_content(
+    response = client.chat.completions.create(
         model=MODEL_NAME,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTIONS,
-            response_mime_type="application/json",
-            temperature=0.4
-        )
+        messages=[
+            {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+            {"role": "user", "content": prompt}
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.4
     )
 
+    raw = response.choices[0].message.content
+
     try:
-        result = json.loads(response.text)
+        result = json.loads(raw)
     except Exception as e:
-        raise ValueError(f"Gemini returned invalid JSON: {response.text}") from e
+        raise ValueError(f"Groq returned invalid JSON: {raw}") from e
 
     sections = result.get("sections")
     if not isinstance(sections, list) or len(sections) != len(recommended_scope):
         raise ValueError(
             f"Expected {len(recommended_scope)} sections, got "
-            f"{len(sections) if isinstance(sections, list) else 'invalid'}: {response.text}"
+            f"{len(sections) if isinstance(sections, list) else 'invalid'}: {raw}"
         )
 
     for expected_subtopic, section in zip(recommended_scope, sections):
         if section.get("subtopic") != expected_subtopic:
             raise ValueError(
                 f"Section order/naming mismatch: expected '{expected_subtopic}', "
-                f"got '{section.get('subtopic')}': {response.text}"
+                f"got '{section.get('subtopic')}': {raw}"
             )
         section["is_gap"] = expected_subtopic in gaps
 
