@@ -18,17 +18,31 @@ load_dotenv()
 # format is passed explicitly (confirmed: it always calls mediainfo_json,
 # which runs ffprobe). static-ffmpeg provides static binaries for both via a
 # pip dependency, fetched from GitHub on first use and cached for the life of
-# the process — resolved eagerly here at import time so that one-time fetch
-# happens at process start/cold-start, not silently during a user's request.
+# the process.
 #
 # pydub's AudioSegment.converter IS respected for the ffmpeg binary, but its
 # ffprobe lookup (get_prober_name() in pydub/utils.py) ONLY ever does
 # which("ffprobe") against PATH — there is no equivalent override attribute,
 # confirmed by reading pydub's source after AudioSegment.ffprobe = ... had no
 # effect. So both binaries' directory is prepended to PATH directly.
-_ffmpeg_path, _ffprobe_path = static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
-AudioSegment.converter = _ffmpeg_path
-os.environ["PATH"] = os.path.dirname(_ffmpeg_path) + os.pathsep + os.environ.get("PATH", "")
+#
+# Resolved LAZILY (on first podcast-audio call), not at import time: this
+# module is imported by pipeline_service.py -> pipeline_routes.py, which
+# app/run.py registers at startup, so an eager fetch here would make the
+# ENTIRE app's boot depend on a GitHub download succeeding — including the
+# existing single-voice daily pipeline, which never needed pydub/ffmpeg at
+# all. Confined to only the code path that actually needs it instead.
+_ffmpeg_ready = False
+
+
+def _ensure_ffmpeg_ready():
+    global _ffmpeg_ready
+    if _ffmpeg_ready:
+        return
+    ffmpeg_path, _ = static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
+    AudioSegment.converter = ffmpeg_path
+    os.environ["PATH"] = os.path.dirname(ffmpeg_path) + os.pathsep + os.environ.get("PATH", "")
+    _ffmpeg_ready = True
 
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
@@ -127,6 +141,8 @@ async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: st
     the final stitched track — not word-level, but enough to sync a
     transcript to the audio.
     """
+    _ensure_ffmpeg_ready()
+
     run_id = uuid.uuid4().hex[:8]
     line_files = []
     combined = AudioSegment.empty()
