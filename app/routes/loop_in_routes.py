@@ -4,8 +4,31 @@ from app.services.loop_in_job_service import start_loop_in_job
 from app.models.loop_in_jobs import get_job
 from app.utils.auth_middleware import require_auth
 from app.services.gap_analyzer import MAX_TOPIC_LENGTH, MAX_INTENT_LENGTH
+from app.services.intent_suggester import suggest_intents
+from app.services.gap_analyzer import GapAnalysisInputError
 
 loop_in_bp = Blueprint("loop_in", __name__, url_prefix="/api/loop-in")
+
+
+@loop_in_bp.post("/suggest-intent")
+@require_auth
+def suggest_intent_route(user):
+    data = request.get_json(silent=True) or {}
+    topic = (data.get("topic") or "").strip()
+
+    if not topic:
+        return jsonify({"error": "topic is required"}), 400
+    if len(topic) > MAX_TOPIC_LENGTH:
+        return jsonify({"error": f"topic must be {MAX_TOPIC_LENGTH} characters or fewer"}), 400
+
+    try:
+        result = suggest_intents(topic)
+    except GapAnalysisInputError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception:
+        return jsonify({"error": "failed to generate suggestions"}), 502
+
+    return jsonify(result)
 
 
 @loop_in_bp.post("/run")
