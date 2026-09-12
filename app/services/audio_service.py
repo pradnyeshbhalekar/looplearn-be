@@ -1,4 +1,5 @@
 import os
+import io
 import re
 import uuid
 import edge_tts
@@ -112,22 +113,39 @@ HOST_VOICES = {
 }
 LINE_GAP_MS = 350
 
+# edge-tts has no built-in timeout, and its underlying websocket connection
+# to Microsoft's service is known to sometimes hang under rate-limiting
+# rather than erroring cleanly — confirmed live: a job stalled at "running"
+# for 20+ minutes with no error, blocked on exactly this call. Without a
+# timeout, one hung connection blocks a job's background thread forever.
+PER_LINE_SYNTHESIS_TIMEOUT_SECONDS = 25
 
-@retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=1, min=2, max=15), reraise=True)
-async def _synthesize_line_to_file(text: str, voice: str, local_file: str):
-    # edge-tts intermittently raises "No audio was received" on a transient
-    # connection hiccup with the underlying service — retry rather than
-    # fail the whole podcast over one flaky line.
+
+async def _do_synthesize_line(text: str, voice: str) -> bytes:
     communicate = edge_tts.Communicate(text, voice)
+    buffer = io.BytesIO()
     wrote_audio = False
-    with open(local_file, "wb") as f:
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                f.write(chunk["data"])
-                wrote_audio = True
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            buffer.write(chunk["data"])
+            wrote_audio = True
 
     if not wrote_audio:
         raise RuntimeError(f"edge-tts produced no audio for voice={voice}")
+
+    return buffer.getvalue()
+
+
+@retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=1, min=2, max=15), reraise=True)
+async def _synthesize_line(text: str, voice: str) -> bytes:
+    # edge-tts intermittently raises "No audio was received" on a transient
+    # connection hiccup, or (per PER_LINE_SYNTHESIS_TIMEOUT_SECONDS above)
+    # just hangs — either way, retry rather than fail the whole podcast
+    # over one flaky line. Each retry attempt gets its own fresh timeout.
+    return await asyncio.wait_for(
+        _do_synthesize_line(text, voice),
+        timeout=PER_LINE_SYNTHESIS_TIMEOUT_SECONDS
+    )
 
 
 async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: str):
@@ -135,6 +153,9 @@ async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: st
     Synthesizes a two-host podcast script: each line gets its host's
     edge-tts voice, lines are stitched into one MP3 (with a short silence
     between lines) via pydub, and the result is uploaded to Cloudinary.
+    Runs entirely in memory — no audio ever touches local disk, since the
+    server's filesystem is ephemeral anyway and there's no reason to trust
+    it with (even briefly) unfinished podcast content.
 
     Returns (audio_url, line_timestamps) where line_timestamps is
     [{"host", "text", "start", "end"}, ...] in seconds, measured against
@@ -144,7 +165,6 @@ async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: st
     _ensure_ffmpeg_ready()
 
     run_id = uuid.uuid4().hex[:8]
-    line_files = []
     combined = AudioSegment.empty()
     line_timestamps = []
     cursor_ms = 0
@@ -160,12 +180,9 @@ async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: st
             if not voice or not re.search(r"[A-Za-z0-9]", text):
                 continue
 
-            local_file = f"loop_in_line_{run_id}_{i}.mp3"
-            line_files.append(local_file)
+            audio_bytes = await _synthesize_line(text, voice)
 
-            await _synthesize_line_to_file(text, voice, local_file)
-
-            segment = AudioSegment.from_file(local_file, format="mp3")
+            segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
             duration_ms = len(segment)
 
             line_timestamps.append({
@@ -183,27 +200,26 @@ async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: st
         if len(combined) == 0:
             raise ValueError("No dialogue lines produced audio")
 
-        final_file = f"loop_in_podcast_{topic_slug}_{run_id}.mp3"
-        combined.export(final_file, format="mp3")
+        out_buffer = io.BytesIO()
+        combined.export(out_buffer, format="mp3")
+        out_buffer.seek(0)
 
         print("Uploading podcast audio to Cloudinary...")
-        response = cloudinary.uploader.upload(final_file, resource_type="video", folder="loop_in_podcast")
+        response = cloudinary.uploader.upload(
+            out_buffer,
+            resource_type="video",
+            folder="loop_in_podcast",
+            public_id=f"{topic_slug}_{run_id}",
+            format="mp3"
+        )
         audio_url = response.get("secure_url")
         print("✅ Podcast audio uploaded to Cloudinary successfully.")
-
-        if os.path.exists(final_file):
-            os.remove(final_file)
 
         return audio_url, line_timestamps
 
     except Exception as e:
         print(f"❌ Error generating podcast audio: {e}")
         return None, None
-
-    finally:
-        for local_file in line_files:
-            if os.path.exists(local_file):
-                os.remove(local_file)
 
 
 def create_podcast_audio(dialogue: list[dict], topic_slug: str):
