@@ -12,6 +12,7 @@ from app.routes.auth_routes import auth_routes
 from app.routes.subscription_routes import subscription_routes
 from app.routes.workspace_routes import bp as workspace_routes
 from app.routes.explain_routes import explain_bp
+from app.routes.loop_in_routes import loop_in_bp
 
 app = Flask(__name__)
 
@@ -53,6 +54,7 @@ app.register_blueprint(auth_routes,url_prefix="/api/auth")
 app.register_blueprint(subscription_routes,url_prefix='/api/subscriptions')
 app.register_blueprint(workspace_routes,url_prefix='/api/workspaces')
 app.register_blueprint(explain_bp,url_prefix='/api/explain')
+app.register_blueprint(loop_in_bp, url_prefix="/api/loop-in")
 
 
 

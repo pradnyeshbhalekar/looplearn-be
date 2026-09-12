@@ -15,6 +15,9 @@ pip-wheel-metadata/
 htmlcov/
 *.log
 
+
+.claude
+
 # Virtual Environments
 venv/
 .env/
