@@ -1,11 +1,10 @@
-from groq import Groq
 import json
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-load_dotenv()
+from app.utils.groq_client import get_groq_client
 
-client = Groq()
+load_dotenv()
 
 MODEL_NAME = "openai/gpt-oss-120b"
 
@@ -179,7 +178,7 @@ def compile_podcast(topic: str, intent: str, gap_analysis: dict, sources: list[d
         f"its structure/analogies/examples):\n\n{_format_blog_summary(blog)}"
     )
 
-    response = client.chat.completions.create(
+    response = get_groq_client().chat.completions.create(
         model=MODEL_NAME,
         messages=[
             {"role": "system", "content": SYSTEM_INSTRUCTIONS},

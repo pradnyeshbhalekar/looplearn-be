@@ -1,13 +1,11 @@
-from groq import Groq
 import json
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.services.gap_analyzer import MAX_TOPIC_LENGTH, GapAnalysisInputError
+from app.utils.groq_client import get_groq_client
 
 load_dotenv()
-
-client = Groq()
 
 MODEL_NAME = "openai/gpt-oss-120b"
 
@@ -48,7 +46,7 @@ def suggest_intents(topic: str) -> dict:
 
     prompt = f"Topic: {topic}"
 
-    response = client.chat.completions.create(
+    response = get_groq_client().chat.completions.create(
         model=MODEL_NAME,
         messages=[
             {"role": "system", "content": SYSTEM_INSTRUCTIONS},

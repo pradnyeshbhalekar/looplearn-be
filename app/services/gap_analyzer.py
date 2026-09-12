@@ -1,11 +1,10 @@
-from groq import Groq
 import json
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-load_dotenv()
+from app.utils.groq_client import get_groq_client
 
-client = Groq()
+load_dotenv()
 
 MODEL_NAME = "openai/gpt-oss-120b"
 
@@ -64,7 +63,7 @@ def analyze_gaps(topic: str, intent: str) -> dict:
 
     prompt = f"Topic: {topic}\nLearner intent: {intent}"
 
-    response = client.chat.completions.create(
+    response = get_groq_client().chat.completions.create(
         model=MODEL_NAME,
         messages=[
             {"role": "system", "content": SYSTEM_INSTRUCTIONS},
