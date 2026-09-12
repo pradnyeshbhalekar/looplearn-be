@@ -1,13 +1,34 @@
 import os
+import re
 import uuid
 import edge_tts
 import asyncio
 from dotenv import load_dotenv
 from pydub import AudioSegment
+import static_ffmpeg
+from tenacity import retry, stop_after_attempt, wait_exponential
 import cloudinary
 import cloudinary.uploader
 
 load_dotenv()
+
+# Render's native Python runtime (no Dockerfile, no apt access) doesn't ship
+# ffmpeg or ffprobe, which pydub's stitching (generate_podcast_audio_and_upload)
+# needs — pydub's AudioSegment.from_file shells out to BOTH, even when the
+# format is passed explicitly (confirmed: it always calls mediainfo_json,
+# which runs ffprobe). static-ffmpeg provides static binaries for both via a
+# pip dependency, fetched from GitHub on first use and cached for the life of
+# the process — resolved eagerly here at import time so that one-time fetch
+# happens at process start/cold-start, not silently during a user's request.
+#
+# pydub's AudioSegment.converter IS respected for the ffmpeg binary, but its
+# ffprobe lookup (get_prober_name() in pydub/utils.py) ONLY ever does
+# which("ffprobe") against PATH — there is no equivalent override attribute,
+# confirmed by reading pydub's source after AudioSegment.ffprobe = ... had no
+# effect. So both binaries' directory is prepended to PATH directly.
+_ffmpeg_path, _ffprobe_path = static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
+AudioSegment.converter = _ffmpeg_path
+os.environ["PATH"] = os.path.dirname(_ffmpeg_path) + os.pathsep + os.environ.get("PATH", "")
 
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
@@ -59,7 +80,6 @@ async def generate_audio_and_upload(text: str, topic_slug: str):
             os.remove(local_file)
             print(f"🗑️ Cleaned up local file: {local_file}")
 
-import re
 
 def create_commuter_audio(text_content, topic_slug, domain_name="Software Engineering", topic_title="this topic"):
     """Returns a tuple: (audio_url, timestamps)"""
@@ -79,12 +99,21 @@ HOST_VOICES = {
 LINE_GAP_MS = 350
 
 
+@retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=1, min=2, max=15), reraise=True)
 async def _synthesize_line_to_file(text: str, voice: str, local_file: str):
+    # edge-tts intermittently raises "No audio was received" on a transient
+    # connection hiccup with the underlying service — retry rather than
+    # fail the whole podcast over one flaky line.
     communicate = edge_tts.Communicate(text, voice)
+    wrote_audio = False
     with open(local_file, "wb") as f:
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 f.write(chunk["data"])
+                wrote_audio = True
+
+    if not wrote_audio:
+        raise RuntimeError(f"edge-tts produced no audio for voice={voice}")
 
 
 async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: str):
@@ -109,7 +138,10 @@ async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: st
             host = line.get("host")
             text = line.get("text", "")
             voice = HOST_VOICES.get(host)
-            if not voice or not text.strip():
+            # edge-tts deterministically errors on text with no speakable
+            # content (empty, or punctuation-only like "..."), so filter
+            # those out rather than let a bad line fail the whole podcast.
+            if not voice or not re.search(r"[A-Za-z0-9]", text):
                 continue
 
             local_file = f"loop_in_line_{run_id}_{i}.mp3"
@@ -139,7 +171,7 @@ async def generate_podcast_audio_and_upload(dialogue: list[dict], topic_slug: st
         combined.export(final_file, format="mp3")
 
         print("Uploading podcast audio to Cloudinary...")
-        response = cloudinary.uploader.upload(final_file, resource_type="video", folder="looplearn_audio")
+        response = cloudinary.uploader.upload(final_file, resource_type="video", folder="loop_in_podcast")
         audio_url = response.get("secure_url")
         print("✅ Podcast audio uploaded to Cloudinary successfully.")
 
